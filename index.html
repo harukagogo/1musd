@@ -298,7 +298,7 @@ export default function App() {
     lines.inc.forEach((l) => { byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq); });
     const income = lines.inc.reduce((s, l) => s + tb(perMonth(l.amount, l.freq), l.currency), 0);
     const expense = EXP_CATS.reduce((s, c) => s + catEx[c], 0);
-    const debtTotal = data.properties.reduce((s, p) => s + tb(p.loan?.principal, p.loan?.currency || "HKD"), 0) + data.debts.reduce((s, d) => s + tb(d.balance, d.currency), 0);
+    const debtTotal = data.properties.reduce((s, p) => s + tb(p.loan?.principal, p.loan?.currency || "HKD") + (p.costs || []).reduce((a, c) => a + (c.isLoan ? tb(c.principal, c.currency) : 0), 0), 0) + data.debts.reduce((s, d) => s + tb(d.balance, d.currency), 0);
     return { catEx, byCur, byCurInc, income, expense, balance: income - expense, debtTotal };
   }, [data, lines]);
 
@@ -352,7 +352,12 @@ export default function App() {
     let rec = { ...form, name: form.name.trim() };
     if (t === "property") {
       rec.loan = { ...form.loan, principal: numify(form.loan.principal), rate: numify(form.loan.rate), monthly: numify(form.loan.monthly) };
-      rec.costs = (form.costs || []).filter((c) => c.label && c.label.trim() && numify(c.amount) > 0).map((c) => ({ ...c, amount: numify(c.amount), freq: c.freq || "monthly", id: c.id || uid() }));
+      rec.costs = (form.costs || []).filter((c) => c.label && c.label.trim() && numify(c.amount) > 0).map((c) => {
+        const o = { id: c.id || uid(), label: c.label.trim(), currency: c.currency, amount: numify(c.amount), freq: c.freq || "monthly" };
+        if (o.freq !== "monthly" && c.dueMonth) o.dueMonth = parseInt(c.dueMonth, 10) || undefined;
+        if (c.isLoan) { o.isLoan = true; o.principal = numify(c.principal); o.rate = numify(c.rate); if (c.end) o.end = c.end; }
+        return o;
+      });
     }
     if (t === "insurance") rec.premium = numify(form.premium);
     if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
@@ -417,11 +422,14 @@ export default function App() {
     .tab { display:inline-flex; align-items:center; gap:7px; font-family:${T.sans}; font-size:14px; font-weight:600; color:${T.inkSoft}; background:transparent; border:none; padding:8px 14px; border-radius:11px; cursor:pointer; white-space:nowrap; transition:all .15s ease; }
     .tab:hover { color:${T.ink}; background:${T.surfaceAlt}; }
     .tab.active { color:#FBF7EC; background:${T.forest}; }
-    .inp, .sel { width:100%; font-family:${T.sans}; font-size:14px; color:${T.ink}; background:${T.surface}; border:1px solid ${T.line}; border-radius:11px; padding:10px 12px; outline:none; transition:border-color .15s ease, box-shadow .15s ease; }
+    .inp, .sel { width:100%; font-family:${T.sans}; font-size:16px; color:${T.ink}; background:${T.surface}; border:1px solid ${T.line}; border-radius:11px; padding:10px 12px; outline:none; transition:border-color .15s ease, box-shadow .15s ease; }
     .inp:focus, .sel:focus { border-color:${T.forest}; box-shadow:0 0 0 3px ${T.forestSoft}; }
     .sel { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C846F' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
     @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .fgrid2 { display:grid; gap:14px; grid-template-columns:1fr 1fr; }
+    .fgrid21 { display:grid; gap:14px; grid-template-columns:2fr 1fr; }
+    @media (max-width:600px) { .fgrid2, .fgrid21 { grid-template-columns:1fr; gap:12px; } }
     .rise { animation: fadeUp .45s ease both; }
     .fin ::-webkit-scrollbar { height:8px; width:8px; }
     .fin ::-webkit-scrollbar-thumb { background:${T.line}; border-radius:8px; }
@@ -825,7 +833,15 @@ export default function App() {
                     {(p.costs || []).length > 0 && (
                       <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.line}` }}>
                         <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600, marginBottom: 8 }}>其他費用</div>
-                        {p.costs.map((c) => <div key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontFamily: T.sans, fontSize: 13 }}><span style={{ color: T.inkSoft }}>{c.label}{c.freq && c.freq !== "monthly" ? ` · ${FREQ[c.freq].short}繳` : ""}</span><span style={{ fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{cur(c.amount, c.currency)}</span></div>)}
+                        {p.costs.map((c) => (
+                          <div key={c.id} style={{ padding: "4px 0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: T.sans, fontSize: 13 }}>
+                              <span style={{ color: T.inkSoft }}>{c.label}{c.freq && c.freq !== "monthly" ? ` · ${FREQ[c.freq].short}繳${c.dueMonth ? ` ${c.dueMonth}月` : ""}` : ""}{c.isLoan ? " · 貸款" : ""}</span>
+                              <span style={{ fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{cur(c.amount, c.currency)}</span>
+                            </div>
+                            {c.isLoan && numify(c.principal) > 0 && <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginTop: 2 }}>剩 {cur(c.principal, c.currency)} · 年利率 {numify(c.rate).toFixed(2)}%</div>}
+                          </div>
+                        ))}
                       </div>
                     )}
                     <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>每月平均合計</span><span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(monthlyBase)}</span></div>
@@ -1007,20 +1023,20 @@ export default function App() {
       {modal && (
         <Modal title={(modal.id ? "編輯" : "新增") + titles[modal.type]} onClose={close} onSubmit={submit} canSubmit={canSubmit} submitLabel={modal.id ? "儲存變更" : "新增"}>
           {modal.type === "property" && (<>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}>
+            <div className="fgrid21">
               <Field label="物業名稱"><input className="inp" placeholder="例如:聯榮大廈" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
               <Field label="地區"><input className="inp" placeholder="澳門" value={form.region} onChange={(e) => setF("region", e.target.value)} /></Field>
             </div>
             <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: T.forest, margin: "4px 0 12px" }}>房貸</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="每月還款"><input className="inp" type="number" inputMode="decimal" placeholder="例如 15000" value={form.loan?.monthly} onChange={(e) => setLoanF("monthly", e.target.value)} /></Field>
               <Field label="貨幣"><CurSelect value={form.loan?.currency} onChange={(v) => setLoanF("currency", v)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="剩餘本金"><input className="inp" type="number" inputMode="decimal" placeholder="例如 3000000" value={form.loan?.principal} onChange={(e) => setLoanF("principal", e.target.value)} /></Field>
               <Field label="年利率 (%)"><input className="inp" type="number" step="0.001" inputMode="decimal" placeholder="例如 2.8" value={form.loan?.rate} onChange={(e) => setLoanF("rate", e.target.value)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="開始日期"><input className="inp" type="date" value={form.loan?.start} onChange={(e) => setLoanF("start", e.target.value)} /></Field>
               <Field label="還清日期"><input className="inp" type="date" value={form.loan?.end} onChange={(e) => setLoanF("end", e.target.value)} /></Field>
             </div>
@@ -1029,28 +1045,51 @@ export default function App() {
               <button className="btn-ghost" style={{ padding: "5px 11px", fontSize: 12.5 }} onClick={addCostRow}><Plus size={14} />加一項</button>
             </div>
             {(form.costs || []).map((c, idx) => (
-              <div key={c.id || idx} style={{ display: "grid", gridTemplateColumns: "1fr 70px 1fr 78px 28px", gap: 6, marginBottom: 8, alignItems: "center" }}>
-                <input className="inp" placeholder="火險…" value={c.label} onChange={(e) => setCost(idx, "label", e.target.value)} style={{ padding: "8px 9px" }} />
-                <select className="sel" value={c.currency} onChange={(e) => setCost(idx, "currency", e.target.value)} style={{ padding: "8px 20px 8px 7px" }}>{CUR_LIST.map((x) => <option key={x} value={x}>{x}</option>)}</select>
-                <input className="inp" type="number" inputMode="decimal" placeholder="金額" value={c.amount} onChange={(e) => setCost(idx, "amount", e.target.value)} style={{ padding: "8px 9px" }} />
-                <select className="sel" value={c.freq || "monthly"} onChange={(e) => setCost(idx, "freq", e.target.value)} style={{ padding: "8px 20px 8px 7px" }}>{Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.short}</option>)}</select>
-                <button className="icon-btn" style={{ color: T.neg }} onClick={() => delCost(idx)}><X size={15} /></button>
+              <div key={c.id || idx} style={{ border: `1px solid ${T.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: T.surfaceAlt }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input className="inp" placeholder="名稱:火險 / 管理費 / 保險貸款…" value={c.label} onChange={(e) => setCost(idx, "label", e.target.value)} style={{ flex: 1 }} />
+                  <button className="icon-btn" style={{ color: T.neg, flexShrink: 0 }} onClick={() => delCost(idx)}><X size={16} /></button>
+                </div>
+                <div className="fgrid2" style={{ marginTop: 8 }}>
+                  <input className="inp" type="number" inputMode="decimal" placeholder="每次金額" value={c.amount} onChange={(e) => setCost(idx, "amount", e.target.value)} />
+                  <select className="sel" value={c.currency} onChange={(e) => setCost(idx, "currency", e.target.value)}>{CUR_LIST.map((x) => <option key={x} value={x}>{x} · {CUR_LABEL[x]}</option>)}</select>
+                </div>
+                <div className="fgrid2" style={{ marginTop: 8 }}>
+                  <select className="sel" value={c.freq || "monthly"} onChange={(e) => setCost(idx, "freq", e.target.value)}>{Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+                  {(c.freq && c.freq !== "monthly") ? (
+                    <select className="sel" value={c.dueMonth || ""} onChange={(e) => setCost(idx, "dueMonth", e.target.value)}><option value="">幾月繳?</option>{Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m} 月</option>)}</select>
+                  ) : <div />}
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer", fontFamily: T.sans, fontSize: 13.5, color: T.inkSoft }}>
+                  <input type="checkbox" checked={!!c.isLoan} onChange={(e) => setCost(idx, "isLoan", e.target.checked)} style={{ width: 18, height: 18 }} />
+                  這項是貸款(有本金、利息)
+                </label>
+                {c.isLoan && (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="fgrid2">
+                      <input className="inp" type="number" inputMode="decimal" placeholder="剩餘本金" value={c.principal || ""} onChange={(e) => setCost(idx, "principal", e.target.value)} />
+                      <input className="inp" type="number" step="0.001" inputMode="decimal" placeholder="年利率 %" value={c.rate || ""} onChange={(e) => setCost(idx, "rate", e.target.value)} />
+                    </div>
+                    <input className="inp" type="date" value={c.end || ""} onChange={(e) => setCost(idx, "end", e.target.value)} style={{ marginTop: 8 }} />
+                    <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, marginTop: 5 }}>上面的「每次金額」就是這筆貸款的每月還款;本金會算進總負債。</div>
+                  </div>
+                )}
               </div>
             ))}
-            {(form.costs || []).length === 0 && <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 4 }}>可加入保險貸款、火險、管理費、水電網等。火險等可選「年」繳。</div>}
+            {(form.costs || []).length === 0 && <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 4 }}>可加入保險貸款、火險、管理費、水電網等。非月繳的可選「幾月繳」;若是貸款可勾選填本金與利率。</div>}
           </>)}
 
           {modal.type === "insurance" && (<>
             <Field label="保險名稱"><input className="inp" placeholder="例如:優裕醫療保" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="險種"><select className="sel" value={form.type} onChange={(e) => setF("type", e.target.value)}>{INS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="保費金額" hint="每次繳的金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 6000" value={form.premium} onChange={(e) => setF("premium", e.target.value)} /></Field>
               <Field label="繳費頻率"><select className="sel" value={form.frequency} onChange={(e) => setF("frequency", e.target.value)}>{Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="生效日期" hint="(決定年繳在哪個月扣)"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
               <Field label="繳費期滿"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
             </div>
@@ -1058,11 +1097,11 @@ export default function App() {
 
           {modal.type === "debt" && (<>
             <Field label="名稱"><input className="inp" placeholder="例如:HSBC 萬應錢" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="類型"><select className="sel" value={form.kind} onChange={(e) => setF("kind", e.target.value)}>{DEBT_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="每月還款"><input className="inp" type="number" inputMode="decimal" placeholder="例如 2000" value={form.monthly} onChange={(e) => setF("monthly", e.target.value)} /></Field>
               <Field label="剩餘金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 100000" value={form.balance} onChange={(e) => setF("balance", e.target.value)} /></Field>
             </div>
@@ -1071,11 +1110,11 @@ export default function App() {
 
           {modal.type === "income" && (<>
             <Field label="來源名稱"><input className="inp" placeholder="例如:聯榮 1、薪金、家用" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 3000" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
               <Field label="群組" hint="同來源會歸在一起,如:聯榮大廈、前山、日本"><input className="inp" placeholder="聯榮大廈" value={form.group} onChange={(e) => setF("group", e.target.value)} /></Field>
             </div>
@@ -1084,7 +1123,7 @@ export default function App() {
 
           {modal.type === "subscription" && (<>
             <Field label="名稱"><input className="inp" placeholder="例如:ChatGPT" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="金額"><input className="inp" type="number" inputMode="decimal" placeholder="22" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
@@ -1093,11 +1132,11 @@ export default function App() {
 
           {modal.type === "living" && (<>
             <Field label="名稱"><input className="inp" placeholder="例如:零用錢、手機費、家用" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="金額" hint="平時的金額,每月可在「每月對帳」改實際數"><input className="inp" type="number" inputMode="decimal" placeholder="例如 5000" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
               <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
             </div>
@@ -1105,11 +1144,11 @@ export default function App() {
 
           {modal.type === "oneoff" && (<>
             <Field label="項目名稱"><input className="inp" placeholder="例如:機票、家電、律師費" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 3000" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="fgrid2">
               <Field label="日期" hint="決定它算在哪個月 / 哪一年"><input className="inp" type="date" value={form.date} onChange={(e) => setF("date", e.target.value)} /></Field>
               <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
             </div>
