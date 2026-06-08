@@ -106,17 +106,17 @@ function buildLines(data) {
   const ex = [], inc = [];
   data.properties.forEach((p) => {
     const lc = p.loan?.currency || "HKD";
-    if (numify(p.loan?.monthly) > 0) ex.push({ key: `p:${p.id}:loan`, cat: "物業", name: `${p.name} · 房貸`, currency: lc, amount: numify(p.loan.monthly), freq: "monthly", anchor: 1 });
+    if (numify(p.loan?.monthly) > 0) ex.push({ key: `p:${p.id}:loan`, cat: "物業", name: `${p.name} · 房貸`, currency: lc, amount: numify(p.loan.monthly), freq: "monthly", anchor: 1, account: p.loan.account || "" });
     (p.costs || []).forEach((c) => {
       const freq = c.freq || "monthly";
       const anchor = c.dueMonth || (p.loan?.start ? new Date(p.loan.start).getMonth() + 1 : 1);
-      ex.push({ key: `p:${p.id}:c:${c.id}`, cat: "物業", name: `${p.name} · ${c.label}`, currency: c.currency, amount: numify(c.amount), freq, anchor });
+      ex.push({ key: `p:${p.id}:c:${c.id}`, cat: "物業", name: `${p.name} · ${c.label}`, currency: c.currency, amount: numify(c.amount), freq, anchor, account: c.account || "" });
     });
   });
-  data.insurances.forEach((i) => { const anchor = i.start ? new Date(i.start).getMonth() + 1 : 1; ex.push({ key: `ins:${i.id}`, cat: "保險", name: i.name, currency: i.currency, amount: numify(i.premium), freq: i.frequency || "annual", anchor }); });
-  data.debts.forEach((d) => ex.push({ key: `debt:${d.id}`, cat: "負債", name: d.name, currency: d.currency, amount: numify(d.monthly), freq: "monthly", anchor: 1 }));
-  data.subscriptions.forEach((s) => ex.push({ key: `sub:${s.id}`, cat: "固定費", name: s.name, currency: s.currency, amount: numify(s.amount), freq: s.cycle || "monthly", anchor: 1 }));
-  (data.living || []).forEach((x) => ex.push({ key: `liv:${x.id}`, cat: "生活費", name: x.name, currency: x.currency, amount: numify(x.amount), freq: x.cycle || "monthly", anchor: 1 }));
+  data.insurances.forEach((i) => { const anchor = i.start ? new Date(i.start).getMonth() + 1 : 1; ex.push({ key: `ins:${i.id}`, cat: "保險", name: i.name, currency: i.currency, amount: numify(i.premium), freq: i.frequency || "annual", anchor, account: i.account || "" }); });
+  data.debts.forEach((d) => ex.push({ key: `debt:${d.id}`, cat: "負債", name: d.name, currency: d.currency, amount: numify(d.monthly), freq: "monthly", anchor: 1, account: d.account || "" }));
+  data.subscriptions.forEach((s) => ex.push({ key: `sub:${s.id}`, cat: "固定費", name: s.name, currency: s.currency, amount: numify(s.amount), freq: s.cycle || "monthly", anchor: 1, account: s.account || "" }));
+  (data.living || []).forEach((x) => ex.push({ key: `liv:${x.id}`, cat: "生活費", name: x.name, currency: x.currency, amount: numify(x.amount), freq: x.cycle || "monthly", anchor: 1, account: x.account || "" }));
   data.incomes.forEach((i) => inc.push({ key: `inc:${i.id}`, cat: "收入", name: i.name, currency: i.currency, amount: numify(i.amount), freq: i.cycle || "monthly", anchor: 1, start: i.start || "", end: i.end || "", account: i.account || "" }));
   return { ex, inc };
 }
@@ -299,19 +299,22 @@ export default function App() {
     const byCur = {}, byCurInc = {};
     lines.ex.forEach((l) => { const mb = tb(perMonth(l.amount, l.freq), l.currency); catEx[l.cat] += mb; byCur[l.currency] = (byCur[l.currency] || 0) + perMonth(l.amount, l.freq); });
     const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
-    const byAcct = {};
+    const acct = {};
+    const ensureA = (a) => { const k = (a && a.trim()) || "未指定"; if (!acct[k]) acct[k] = { inBase: 0, outBase: 0, inCur: {}, outCur: {} }; return acct[k]; };
     lines.inc.forEach((l) => {
       if (!activeRange(l.start, l.end, nowY, nowM)) return;
-      byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq);
-      const a = (l.account && l.account.trim()) || "未指定";
-      if (!byAcct[a]) byAcct[a] = { base: 0, byCur: {} };
-      byAcct[a].base += tb(perMonth(l.amount, l.freq), l.currency);
-      byAcct[a].byCur[l.currency] = (byAcct[a].byCur[l.currency] || 0) + perMonth(l.amount, l.freq);
+      const m = perMonth(l.amount, l.freq);
+      byCurInc[l.currency] = (byCurInc[l.currency] || 0) + m;
+      const A = ensureA(l.account); A.inBase += tb(m, l.currency); A.inCur[l.currency] = (A.inCur[l.currency] || 0) + m;
+    });
+    lines.ex.forEach((l) => {
+      const m = perMonth(l.amount, l.freq);
+      const A = ensureA(l.account); A.outBase += tb(m, l.currency); A.outCur[l.currency] = (A.outCur[l.currency] || 0) + m;
     });
     const income = lines.inc.reduce((s, l) => s + (activeRange(l.start, l.end, nowY, nowM) ? tb(perMonth(l.amount, l.freq), l.currency) : 0), 0);
     const expense = EXP_CATS.reduce((s, c) => s + catEx[c], 0);
     const debtTotal = data.properties.reduce((s, p) => s + tb(p.loan?.principal, p.loan?.currency || "HKD") + (p.costs || []).reduce((a, c) => a + (c.isLoan ? tb(c.principal, c.currency) : 0), 0), 0) + data.debts.reduce((s, d) => s + tb(d.balance, d.currency), 0);
-    return { catEx, byCur, byCurInc, byAcct, income, expense, balance: income - expense, debtTotal };
+    return { catEx, byCur, byCurInc, acct, income, expense, balance: income - expense, debtTotal };
   }, [data, lines]);
 
   const catSlices = useMemo(() => EXP_CATS.map((c) => ({ name: c, value: M.catEx[c], color: CAT_COLOR[c] })).filter((x) => x.value > 0), [M]);
@@ -328,13 +331,13 @@ export default function App() {
 
   /* ----- CRUD ----- */
   const defaults = {
-    property: { name: "", region: "", loan: { currency: "HKD", principal: "", rate: "", monthly: "", start: "", end: "" }, costs: [] },
-    insurance: { name: "", type: "醫療險", currency: "HKD", premium: "", frequency: "annual", start: "", end: "" },
-    debt: { name: "", kind: "信用卡", currency: "HKD", balance: "", monthly: "", end: "" },
+    property: { name: "", region: "", loan: { currency: "HKD", principal: "", rate: "", monthly: "", start: "", end: "", account: "" }, costs: [] },
+    insurance: { name: "", type: "醫療險", currency: "HKD", premium: "", frequency: "annual", start: "", end: "", account: "" },
+    debt: { name: "", kind: "信用卡", currency: "HKD", balance: "", monthly: "", end: "", account: "" },
     income: { name: "", currency: "HKD", amount: "", cycle: "monthly", group: "", account: "", start: "", end: "", note: "" },
-    subscription: { name: "", currency: "USD", amount: "", cycle: "monthly" },
-    living: { name: "", currency: "MOP", amount: "", cycle: "monthly", note: "" },
-    oneoff: { name: "", currency: "MOP", amount: "", date: todayISO(), note: "" },
+    subscription: { name: "", currency: "USD", amount: "", cycle: "monthly", account: "" },
+    living: { name: "", currency: "MOP", amount: "", cycle: "monthly", account: "", note: "" },
+    oneoff: { name: "", currency: "MOP", amount: "", date: todayISO(), account: "", note: "" },
   };
   const titles = { property: "物業", insurance: "保險", debt: "負債", income: "收入來源", subscription: "固定費 / 訂閱", living: "生活費", oneoff: "臨時支出" };
   const collOf = { property: "properties", insurance: "insurances", debt: "debts", income: "incomes", subscription: "subscriptions", living: "living", oneoff: "oneoffs" };
@@ -344,7 +347,7 @@ export default function App() {
   const close = () => setModal(null);
   const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setLoanF = (k, v) => setForm((f) => ({ ...f, loan: { ...(f.loan || {}), [k]: v } }));
-  const addCostRow = () => setForm((f) => ({ ...f, costs: [...(f.costs || []), { id: uid(), label: "", currency: f.loan?.currency || "HKD", amount: "", freq: "monthly" }] }));
+  const addCostRow = () => setForm((f) => ({ ...f, costs: [...(f.costs || []), { id: uid(), label: "", currency: f.loan?.currency || "HKD", amount: "", freq: "monthly", account: "" }] }));
   const setCost = (i, k, v) => setForm((f) => { const costs = [...f.costs]; costs[i] = { ...costs[i], [k]: v }; return { ...f, costs }; });
   const delCost = (i) => setForm((f) => ({ ...f, costs: f.costs.filter((_, idx) => idx !== i) }));
 
@@ -367,6 +370,7 @@ export default function App() {
       rec.costs = (form.costs || []).filter((c) => c.label && c.label.trim() && numify(c.amount) > 0).map((c) => {
         const o = { id: c.id || uid(), label: c.label.trim(), currency: c.currency, amount: numify(c.amount), freq: c.freq || "monthly" };
         if (o.freq !== "monthly" && c.dueMonth) o.dueMonth = parseInt(c.dueMonth, 10) || undefined;
+        if (c.account && c.account.trim()) o.account = c.account.trim();
         if (c.isLoan) { o.isLoan = true; o.principal = numify(c.principal); o.rate = numify(c.rate); if (c.end) o.end = c.end; }
         return o;
       });
@@ -464,8 +468,8 @@ export default function App() {
   return (
     <div className="fin" style={{ fontFamily: T.sans, color: T.ink, background: T.bg, backgroundImage: `radial-gradient(1200px 500px at 85% -10%, ${T.brassSoft}66, transparent 60%), radial-gradient(900px 400px at -5% 5%, ${T.forestSoft}88, transparent 55%)`, borderRadius: 20, padding: "22px clamp(14px,3vw,28px) 30px", minHeight: 480 }}>
       <style>{css}</style>
+      <datalist id="acctSuggest"><option value="中國微信" /><option value="中國銀行" /><option value="香港銀行" /><option value="日本銀行" /><option value="澳門銀行" /><option value="現金" /></datalist>
 
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 42, height: 42, borderRadius: 13, background: T.forest, display: "grid", placeItems: "center", boxShadow: "0 4px 12px rgba(39,65,47,.3)" }}><Wallet size={21} color={T.brassSoft} strokeWidth={2} /></div>
@@ -600,25 +604,27 @@ export default function App() {
 
               <div className="card" style={{ padding: 20, gridColumn: "1 / -1" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}><MapPin size={17} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>各地點收入(每月)</div></div>
-                  <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>你的錢實際落在哪裡</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}><MapPin size={17} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>各地點收支(每月)</div></div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>每個地方收進來 − 付出去</div>
                 </div>
                 {(() => {
-                  const accts = Object.keys(M.byAcct).sort((a, b) => M.byAcct[b].base - M.byAcct[a].base);
-                  if (!accts.length) return <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted, marginTop: 10 }}>在收入填上「存放地點」(例如:中國微信、香港銀行),這裡就會依地點分開顯示。</div>;
+                  const accts = Object.keys(M.acct).sort((a, b) => (M.acct[b].inBase - M.acct[b].outBase) - (M.acct[a].inBase - M.acct[a].outBase));
+                  if (!accts.length) return <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted, marginTop: 10 }}>在收入與支出填上「存放地點 / 帳戶」(例如:中國微信、香港銀行),這裡就會依地點顯示收入、支出與淨流。</div>;
                   return (
-                    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", marginTop: 14 }}>
+                    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", marginTop: 14 }}>
                       {accts.map((a) => {
-                        const info = M.byAcct[a];
+                        const info = M.acct[a], net = info.inBase - info.outBase;
                         return (
                           <div key={a} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: "14px 16px", background: T.surfaceAlt }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                               <span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a}</span>
-                              <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.pos, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(info.base)}</span>
+                              <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: net >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(net >= 0 ? "+" : "−") + fmt(Math.abs(net))}</span>
                             </div>
-                            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {Object.entries(info.byCur).sort((x, y) => tb(y[1], y[0]) - tb(x[1], x[0])).map(([c, v]) => <Badge key={c} color={T.forest} bg={T.forestSoft}>{cur(v, c)} / 月</Badge>)}
+                            <div style={{ display: "flex", gap: 18, marginTop: 12 }}>
+                              <Mini label="收入" value={bMoney(info.inBase)} accent={T.pos} />
+                              <Mini label="支出" value={bMoney(info.outBase)} accent={T.forest} />
                             </div>
+                            <div style={{ marginTop: 10, fontFamily: T.sans, fontSize: 11, color: T.muted }}>淨流 ≈ {bMoney(net)} / 月</div>
                           </div>
                         );
                       })}
@@ -1083,6 +1089,7 @@ export default function App() {
               <Field label="開始日期"><input className="inp" type="date" value={form.loan?.start} onChange={(e) => setLoanF("start", e.target.value)} /></Field>
               <Field label="還清日期"><input className="inp" type="date" value={form.loan?.end} onChange={(e) => setLoanF("end", e.target.value)} /></Field>
             </div>
+            <Field label="房貸從哪個帳戶付" hint="用哪裡的錢付這筆房貸,例如:香港銀行"><input className="inp" list="acctSuggest" placeholder="香港銀行" value={form.loan?.account || ""} onChange={(e) => setLoanF("account", e.target.value)} /></Field>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 10px" }}>
               <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: T.forest }}>其他費用</span>
               <button className="btn-ghost" style={{ padding: "5px 11px", fontSize: 12.5 }} onClick={addCostRow}><Plus size={14} />加一項</button>
@@ -1103,6 +1110,7 @@ export default function App() {
                     <select className="sel" value={c.dueMonth || ""} onChange={(e) => setCost(idx, "dueMonth", e.target.value)}><option value="">幾月繳?</option>{Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m} 月</option>)}</select>
                   ) : <div />}
                 </div>
+                <input className="inp" list="acctSuggest" placeholder="從哪個帳戶付(選填),例如:中國微信" value={c.account || ""} onChange={(e) => setCost(idx, "account", e.target.value)} style={{ marginTop: 8 }} />
                 <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer", fontFamily: T.sans, fontSize: 13.5, color: T.inkSoft }}>
                   <input type="checkbox" checked={!!c.isLoan} onChange={(e) => setCost(idx, "isLoan", e.target.checked)} style={{ width: 18, height: 18 }} />
                   這項是貸款(有本金、利息)
@@ -1136,6 +1144,7 @@ export default function App() {
               <Field label="生效日期" hint="(決定年繳在哪個月扣)"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
               <Field label="繳費期滿"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
             </div>
+            <Field label="從哪個帳戶付" hint="用哪裡的錢付,例如:香港銀行"><input className="inp" list="acctSuggest" placeholder="香港銀行" value={form.account || ""} onChange={(e) => setF("account", e.target.value)} /></Field>
           </>)}
 
           {modal.type === "debt" && (<>
@@ -1149,6 +1158,7 @@ export default function App() {
               <Field label="剩餘金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 100000" value={form.balance} onChange={(e) => setF("balance", e.target.value)} /></Field>
             </div>
             <Field label="還清日期"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
+            <Field label="從哪個帳戶付" hint="用哪裡的錢還,例如:香港銀行"><input className="inp" list="acctSuggest" placeholder="香港銀行" value={form.account || ""} onChange={(e) => setF("account", e.target.value)} /></Field>
           </>)}
 
           {modal.type === "income" && (<>
@@ -1161,7 +1171,7 @@ export default function App() {
               <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
               <Field label="群組" hint="同來源會歸在一起,如:聯榮大廈、前山、日本"><input className="inp" placeholder="聯榮大廈" value={form.group} onChange={(e) => setF("group", e.target.value)} /></Field>
             </div>
-            <Field label="存放地點 / 帳戶" hint="錢實際收到、存放的地方(可跟合約幣別不同),例如:中國微信、香港銀行"><input className="inp" list="acctSuggest" placeholder="中國微信" value={form.account} onChange={(e) => setF("account", e.target.value)} /><datalist id="acctSuggest"><option value="中國微信" /><option value="中國銀行" /><option value="香港銀行" /><option value="日本銀行" /><option value="澳門銀行" /><option value="現金" /></datalist></Field>
+            <Field label="存放地點 / 帳戶" hint="錢實際收到、存放的地方(可跟合約幣別不同),例如:中國微信、香港銀行"><input className="inp" list="acctSuggest" placeholder="中國微信" value={form.account} onChange={(e) => setF("account", e.target.value)} /></Field>
             <div className="fgrid2">
               <Field label="開始日期" hint="幾時開始有這筆收入(留空=一直都有)"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
               <Field label="結束日期" hint="幾時結束(留空=持續中)"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
@@ -1176,6 +1186,7 @@ export default function App() {
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
             <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+            <Field label="從哪個帳戶付" hint="用哪裡的錢付,例如:香港銀行"><input className="inp" list="acctSuggest" placeholder="香港銀行" value={form.account || ""} onChange={(e) => setF("account", e.target.value)} /></Field>
           </>)}
 
           {modal.type === "living" && (<>
@@ -1188,6 +1199,7 @@ export default function App() {
               <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
               <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
             </div>
+            <Field label="從哪個帳戶付" hint="用哪裡的錢付,例如:中國微信"><input className="inp" list="acctSuggest" placeholder="中國微信" value={form.account || ""} onChange={(e) => setF("account", e.target.value)} /></Field>
           </>)}
 
           {modal.type === "oneoff" && (<>
@@ -1200,6 +1212,7 @@ export default function App() {
               <Field label="日期" hint="決定它算在哪個月 / 哪一年"><input className="inp" type="date" value={form.date} onChange={(e) => setF("date", e.target.value)} /></Field>
               <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
             </div>
+            <Field label="從哪個帳戶付" hint="用哪裡的錢付,例如:香港銀行"><input className="inp" list="acctSuggest" placeholder="香港銀行" value={form.account || ""} onChange={(e) => setF("account", e.target.value)} /></Field>
           </>)}
         </Modal>
       )}
