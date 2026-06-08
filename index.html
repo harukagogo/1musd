@@ -92,6 +92,9 @@ const cur = (n, c) => `${c} ${fmt(n)}`;
 const perMonth = (amt, freq) => numify(amt) / (FREQ[freq]?.div || 1);
 const monthsUntil = (s) => { if (!s) return null; const now = new Date(), d = new Date(s); return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth()); };
 const fmtDate = (s) => { if (!s) return "—"; const d = new Date(s); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`; };
+const fmtMonth = (s) => { if (!s) return ""; const d = new Date(s); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const ymIdx = (y, m) => y * 12 + (m - 1);
+const activeRange = (start, end, y, m) => { const idx = ymIdx(y, m); if (start) { const d = new Date(start); if (idx < ymIdx(d.getFullYear(), d.getMonth() + 1)) return false; } if (end) { const d = new Date(end); if (idx > ymIdx(d.getFullYear(), d.getMonth() + 1)) return false; } return true; };
 const countdownText = (s) => { const m = monthsUntil(s); if (m == null) return null; if (m < 0) return "已完成"; if (m === 0) return "本月"; if (m < 12) return `還剩 ${m} 個月`; const y = Math.floor(m / 12), mm = m % 12; return `還剩 ${y} 年${mm ? ` ${mm} 個月` : ""}`; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymOf = (y, m) => `${y}-${String(m).padStart(2, "0")}`;
@@ -114,7 +117,7 @@ function buildLines(data) {
   data.debts.forEach((d) => ex.push({ key: `debt:${d.id}`, cat: "負債", name: d.name, currency: d.currency, amount: numify(d.monthly), freq: "monthly", anchor: 1 }));
   data.subscriptions.forEach((s) => ex.push({ key: `sub:${s.id}`, cat: "固定費", name: s.name, currency: s.currency, amount: numify(s.amount), freq: s.cycle || "monthly", anchor: 1 }));
   (data.living || []).forEach((x) => ex.push({ key: `liv:${x.id}`, cat: "生活費", name: x.name, currency: x.currency, amount: numify(x.amount), freq: x.cycle || "monthly", anchor: 1 }));
-  data.incomes.forEach((i) => inc.push({ key: `inc:${i.id}`, cat: "收入", name: i.name, currency: i.currency, amount: numify(i.amount), freq: i.cycle || "monthly", anchor: 1 }));
+  data.incomes.forEach((i) => inc.push({ key: `inc:${i.id}`, cat: "收入", name: i.name, currency: i.currency, amount: numify(i.amount), freq: i.cycle || "monthly", anchor: 1, start: i.start || "", end: i.end || "" }));
   return { ex, inc };
 }
 
@@ -295,8 +298,9 @@ export default function App() {
     const catEx = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0 };
     const byCur = {}, byCurInc = {};
     lines.ex.forEach((l) => { const mb = tb(perMonth(l.amount, l.freq), l.currency); catEx[l.cat] += mb; byCur[l.currency] = (byCur[l.currency] || 0) + perMonth(l.amount, l.freq); });
-    lines.inc.forEach((l) => { byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq); });
-    const income = lines.inc.reduce((s, l) => s + tb(perMonth(l.amount, l.freq), l.currency), 0);
+    const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
+    lines.inc.forEach((l) => { if (!activeRange(l.start, l.end, nowY, nowM)) return; byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq); });
+    const income = lines.inc.reduce((s, l) => s + (activeRange(l.start, l.end, nowY, nowM) ? tb(perMonth(l.amount, l.freq), l.currency) : 0), 0);
     const expense = EXP_CATS.reduce((s, c) => s + catEx[c], 0);
     const debtTotal = data.properties.reduce((s, p) => s + tb(p.loan?.principal, p.loan?.currency || "HKD") + (p.costs || []).reduce((a, c) => a + (c.isLoan ? tb(c.principal, c.currency) : 0), 0), 0) + data.debts.reduce((s, d) => s + tb(d.balance, d.currency), 0);
     return { catEx, byCur, byCurInc, income, expense, balance: income - expense, debtTotal };
@@ -319,7 +323,7 @@ export default function App() {
     property: { name: "", region: "", loan: { currency: "HKD", principal: "", rate: "", monthly: "", start: "", end: "" }, costs: [] },
     insurance: { name: "", type: "醫療險", currency: "HKD", premium: "", frequency: "annual", start: "", end: "" },
     debt: { name: "", kind: "信用卡", currency: "HKD", balance: "", monthly: "", end: "" },
-    income: { name: "", currency: "HKD", amount: "", cycle: "monthly", group: "", note: "" },
+    income: { name: "", currency: "HKD", amount: "", cycle: "monthly", group: "", start: "", end: "", note: "" },
     subscription: { name: "", currency: "USD", amount: "", cycle: "monthly" },
     living: { name: "", currency: "MOP", amount: "", cycle: "monthly", note: "" },
     oneoff: { name: "", currency: "MOP", amount: "", date: todayISO(), note: "" },
@@ -608,7 +612,7 @@ export default function App() {
       {/* ============ MONTHLY CHECKLIST ============ */}
       {tab === "monthly" && (() => {
         const dueRecur = lines.ex.filter((l) => isDue(l.freq, l.anchor, curM));
-        const dueInc = lines.inc.filter((l) => isDue(l.freq, l.anchor, curM));
+        const dueInc = lines.inc.filter((l) => isDue(l.freq, l.anchor, curM) && activeRange(l.start, l.end, curY, curM));
         const monthOneoffs = (data.oneoffs || []).filter((o) => { const p = (o.date || "").split("-").map(Number); return p[0] === curY && p[1] === curM; }).map((o) => ({ key: `oneoff:${o.id}`, cat: "臨時", name: o.name, currency: o.currency, amount: numify(o.amount), date: o.date, oneoff: true }));
         const dueEx = [...dueRecur, ...monthOneoffs];
         const expDue = dueEx.reduce((s, l) => s + tb(l.amount, l.currency), 0);
@@ -699,7 +703,7 @@ export default function App() {
         }
         const fcDefault = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
         lines.ex.forEach((l) => { fcDefault[l.cat] += tb(perMonth(l.amount, l.freq), l.currency) * 12; });
-        lines.inc.forEach((l) => { fcDefault["收入"] += tb(perMonth(l.amount, l.freq), l.currency) * 12; });
+        lines.inc.forEach((l) => { let am = 0; for (let mm = 1; mm <= 12; mm++) if (activeRange(l.start, l.end, fcYear, mm)) am++; fcDefault["收入"] += tb(perMonth(l.amount, l.freq), l.currency) * am; });
         const fcStore = data.forecasts[fcYear] || {};
         const fcVal = (c) => (fcStore[c] != null ? fcStore[c] : Math.round(fcDefault[c]));
         const ANN_CATS = [...EXP_CATS, "臨時"];
@@ -922,6 +926,8 @@ export default function App() {
                             </div>
                             <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: T.serif, fontSize: 21, fontWeight: 600, color: T.pos, fontVariantNumeric: "tabular-nums" }}>{cur(i.amount, i.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>/ {CYCLE[i.cycle]?.label}</span></div>
                             <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>≈ {bMoney(tb(perMonth(i.amount, i.cycle), i.currency))} / 月</div>
+                            {(i.start || i.end) && <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>{i.start ? `${fmtMonth(i.start)} 起` : ""}{i.end ? `${i.start ? " · " : ""}至 ${fmtMonth(i.end)}` : ""}</div>}
+                            {!activeRange(i.start, i.end, now.getFullYear(), now.getMonth() + 1) && <div style={{ marginTop: 6 }}><Badge color={T.muted} bg={T.surfaceAlt}>{i.start && new Date() < new Date(i.start) ? "未開始" : "已結束"}</Badge></div>}
                             {i.note && <div style={{ marginTop: 7, fontFamily: T.sans, fontSize: 12, color: T.inkSoft }}>{i.note}</div>}
                           </div>
                         ))}
@@ -1117,6 +1123,10 @@ export default function App() {
             <div className="fgrid2">
               <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
               <Field label="群組" hint="同來源會歸在一起,如:聯榮大廈、前山、日本"><input className="inp" placeholder="聯榮大廈" value={form.group} onChange={(e) => setF("group", e.target.value)} /></Field>
+            </div>
+            <div className="fgrid2">
+              <Field label="開始日期" hint="幾時開始有這筆收入(留空=一直都有)"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
+              <Field label="結束日期" hint="幾時結束(留空=持續中)"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
             </div>
             <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
           </>)}
