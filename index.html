@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#27412F" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="理財帳本" />
+<title>理財帳本</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #E9E0CD; -webkit-text-size-adjust: 100%; }
+  #root { max-width: 1180px; margin: 0 auto; padding: 14px; }
+  #boot { font-family: -apple-system, "Noto Sans TC", system-ui, sans-serif; color: #8C846F; text-align: center; padding: 64px 16px; font-size: 14px; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react"
+  }
+}
+</script>
+</head>
+<body>
+<div id="root"><div id="boot">載入中…</div></div>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-type="module" data-presets="react">
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import {
+  Wallet, Building2, Shield, CreditCard, Coins, Repeat, Plus, Trash2, Pencil, X,
+  Download, Upload, RotateCcw, LayoutGrid, Sliders, Flag, ChevronDown, ArchiveRestore,
+  CalendarCheck, Target, ChevronLeft, ChevronRight, CheckCircle2, Circle, ShoppingBag, Receipt, RefreshCw, LogOut,
+} from "lucide-react";
+import { createRoot } from "react-dom/client";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ===== Firebase ===== 把下面換成你自己 Firebase 專案的設定(Console → 專案設定 → 你的應用程式) ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBbi5QcKqRoXeEijzvM94cVPxEjmuPaMqI",
+  authDomain: "bigbigmoney-c9b57.firebaseapp.com",
+  projectId: "bigbigmoney-c9b57",
+  storageBucket: "bigbigmoney-c9b57.firebasestorage.app",
+  messagingSenderId: "357633473575",
+  appId: "1:357633473575:web:58c397b32a8d93f987a202",
+};
+const fbApp = initializeApp(firebaseConfig);
+const fbAuth = getAuth(fbApp);
+const fbDb = getFirestore(fbApp);
+const googleProvider = new GoogleAuthProvider();
+
+/* ===================== Theme ===================== */
+const T = {
+  bg: "#F3ECDD", surface: "#FCFAF3", surfaceAlt: "#F1E9D8",
+  ink: "#221F18", inkSoft: "#5A5346", muted: "#8C846F", line: "#E4DBC7",
+  forest: "#27412F", forestSoft: "#E7EDE5", brass: "#987534", brassSoft: "#F1E7CF",
+  pos: "#2F6B4F", neg: "#AC472B",
+  serif: '"Fraunces","Noto Serif TC",ui-serif,Georgia,serif',
+  sans: '"Manrope","Noto Sans TC",ui-sans-serif,system-ui,sans-serif',
+};
+const CAT = [
+  { key: "物業", color: "#27412F", bg: T.forestSoft },
+  { key: "保險", color: "#987534", bg: T.brassSoft },
+  { key: "負債", color: "#AC472B", bg: "#F6E2DB" },
+  { key: "固定費", color: "#5C7A63", bg: "#E8EEE9" },
+];
+const EXP_CATS = ["物業", "保險", "負債", "固定費", "生活費"];
+const CAT_COLOR = { 物業: "#27412F", 保險: "#987534", 負債: "#AC472B", 固定費: "#5C7A63", 生活費: "#B5835A", 臨時: "#7C6F64", 收入: "#2F6B4F" };
+
+/* ===================== Constants ===================== */
+const CUR_LIST = ["HKD", "MOP", "CNY", "USD", "JPY"];
+const CUR_LABEL = { HKD: "港幣", MOP: "澳門元", CNY: "人民幣", USD: "美金", JPY: "日圓" };
+const FREQ = {
+  monthly: { label: "月繳", short: "月", div: 1, n: 12 },
+  quarterly: { label: "季繳", short: "季", div: 3, n: 4 },
+  semiannual: { label: "半年繳", short: "半年", div: 6, n: 2 },
+  annual: { label: "年繳", short: "年", div: 12, n: 1 },
+};
+const CYCLE = { monthly: { label: "每月" }, annual: { label: "每年" } };
+const INS_TYPES = ["壽險", "醫療險", "意外險", "重大疾病", "儲蓄險", "年金險", "車險", "住宅險", "其他"];
+const DEBT_KINDS = ["信用卡", "私人貸款", "學費貸款", "其他"];
+
+/* ===================== Helpers ===================== */
+const uid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+const numify = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const fmt = (n) => (n == null || isNaN(n) ? "0" : Math.round(n).toLocaleString("en-US"));
+const cur = (n, c) => `${c} ${fmt(n)}`;
+const perMonth = (amt, freq) => numify(amt) / (FREQ[freq]?.div || 1);
+const monthsUntil = (s) => { if (!s) return null; const now = new Date(), d = new Date(s); return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth()); };
+const fmtDate = (s) => { if (!s) return "—"; const d = new Date(s); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`; };
+const countdownText = (s) => { const m = monthsUntil(s); if (m == null) return null; if (m < 0) return "已完成"; if (m === 0) return "本月"; if (m < 12) return `還剩 ${m} 個月`; const y = Math.floor(m / 12), mm = m % 12; return `還剩 ${y} 年${mm ? ` ${mm} 個月` : ""}`; };
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const ymOf = (y, m) => `${y}-${String(m).padStart(2, "0")}`;
+const dueMonthsOf = (freq, anchor) => { const n = FREQ[freq]?.n || 12; if (n === 12) return null; const step = 12 / n; const set = []; for (let k = 0; k < n; k++) set.push(((anchor - 1 + k * step) % 12) + 1); return set; };
+const isDue = (freq, anchor, month) => { const dm = dueMonthsOf(freq, anchor); return dm === null ? true : dm.includes(month); };
+
+/* Build flat payable / receivable lines from the data */
+function buildLines(data) {
+  const ex = [], inc = [];
+  data.properties.forEach((p) => {
+    const lc = p.loan?.currency || "HKD";
+    if (numify(p.loan?.monthly) > 0) ex.push({ key: `p:${p.id}:loan`, cat: "物業", name: `${p.name} · 房貸`, currency: lc, amount: numify(p.loan.monthly), freq: "monthly", anchor: 1 });
+    (p.costs || []).forEach((c) => {
+      const freq = c.freq || "monthly";
+      const anchor = c.dueMonth || (p.loan?.start ? new Date(p.loan.start).getMonth() + 1 : 1);
+      ex.push({ key: `p:${p.id}:c:${c.id}`, cat: "物業", name: `${p.name} · ${c.label}`, currency: c.currency, amount: numify(c.amount), freq, anchor });
+    });
+  });
+  data.insurances.forEach((i) => { const anchor = i.start ? new Date(i.start).getMonth() + 1 : 1; ex.push({ key: `ins:${i.id}`, cat: "保險", name: i.name, currency: i.currency, amount: numify(i.premium), freq: i.frequency || "annual", anchor }); });
+  data.debts.forEach((d) => ex.push({ key: `debt:${d.id}`, cat: "負債", name: d.name, currency: d.currency, amount: numify(d.monthly), freq: "monthly", anchor: 1 }));
+  data.subscriptions.forEach((s) => ex.push({ key: `sub:${s.id}`, cat: "固定費", name: s.name, currency: s.currency, amount: numify(s.amount), freq: s.cycle || "monthly", anchor: 1 }));
+  (data.living || []).forEach((x) => ex.push({ key: `liv:${x.id}`, cat: "生活費", name: x.name, currency: x.currency, amount: numify(x.amount), freq: x.cycle || "monthly", anchor: 1 }));
+  data.incomes.forEach((i) => inc.push({ key: `inc:${i.id}`, cat: "收入", name: i.name, currency: i.currency, amount: numify(i.amount), freq: i.cycle || "monthly", anchor: 1 }));
+  return { ex, inc };
+}
+
+/* ===================== Seed (from 重要.xlsx) ===================== */
+const KEY = "finance-data-v2";
+const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], payments: {}, forecasts: {} };
+const SEED = EMPTY; // personal data removed for public hosting; load via import after sign-in
+const hasStore = typeof window !== "undefined" && window.storage;
+
+/* ===================== UI atoms ===================== */
+function Badge({ children, color = T.forest, bg = T.forestSoft }) {
+  return <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color, background: bg, padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap" }}>{children}</span>;
+}
+function Stat({ label, value, sub, accent = T.ink }) {
+  return (
+    <div className="card rise" style={{ padding: "16px 18px 18px" }}>
+      <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.muted, letterSpacing: ".03em" }}>{label}</div>
+      <div style={{ fontFamily: T.serif, fontSize: 25, fontWeight: 600, color: accent, marginTop: 8, fontVariantNumeric: "tabular-nums", lineHeight: 1.05 }}>{value}</div>
+      {sub && <div style={{ fontFamily: T.sans, fontSize: 12, color: T.inkSoft, marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+function SectionHeader({ title, count, onAdd, addLabel }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+      <h2 style={{ fontFamily: T.serif, fontSize: 22, fontWeight: 600, color: T.ink, margin: 0 }}>{title}{count != null && <span style={{ color: T.muted, fontSize: 16 }}> · {count}</span>}</h2>
+      <button className="btn" onClick={onAdd}><Plus size={16} strokeWidth={2.4} />{addLabel}</button>
+    </div>
+  );
+}
+function EmptyState({ icon: Icon, title, desc, cta, onCta }) {
+  return (
+    <div className="card-flat" style={{ padding: "40px 24px", textAlign: "center", borderStyle: "dashed" }}>
+      <div style={{ width: 52, height: 52, borderRadius: 16, background: T.forestSoft, display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon size={24} color={T.forest} strokeWidth={1.8} /></div>
+      <div style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.ink }}>{title}</div>
+      <div style={{ fontFamily: T.sans, fontSize: 13.5, color: T.inkSoft, marginTop: 6, maxWidth: 360, marginInline: "auto" }}>{desc}</div>
+      {cta && <button className="btn" style={{ marginTop: 18 }} onClick={onCta}><Plus size={16} strokeWidth={2.4} />{cta}</button>}
+    </div>
+  );
+}
+function Mini({ label, value, accent = T.ink }) {
+  return <div><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 500 }}>{label}</div><div style={{ fontFamily: T.sans, fontSize: 15, fontWeight: 700, color: accent, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{value}</div></div>;
+}
+function IconBtn({ onClick, title, danger, children }) {
+  return <button className="icon-btn" title={title} onClick={onClick} style={danger ? { color: T.neg } : undefined}>{children}</button>;
+}
+function Field({ label, hint, children }) {
+  return <label style={{ display: "block", marginBottom: 14 }}><div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.inkSoft, marginBottom: 6 }}>{label}</div>{children}{hint && <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, marginTop: 5 }}>{hint}</div>}</label>;
+}
+function CurSelect({ value, onChange }) {
+  return <select className="sel" value={value} onChange={(e) => onChange(e.target.value)}>{CUR_LIST.map((c) => <option key={c} value={c}>{c} · {CUR_LABEL[c]}</option>)}</select>;
+}
+function NavBar({ label, onPrev, onNext, onToday }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <button className="icon-btn" onClick={onPrev}><ChevronLeft size={18} /></button>
+      <div style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, minWidth: 110, textAlign: "center" }}>{label}</div>
+      <button className="icon-btn" onClick={onNext}><ChevronRight size={18} /></button>
+      {onToday && <button className="btn-ghost" style={{ padding: "6px 11px", fontSize: 12.5 }} onClick={onToday}>今天</button>}
+    </div>
+  );
+}
+function CardRow({ children }) { return <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 12 }}>{children}</div>; }
+function Modal({ title, onClose, onSubmit, submitLabel, canSubmit, children }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(34,31,24,.42)", backdropFilter: "blur(3px)", display: "grid", placeItems: "center", padding: 16, zIndex: 50 }}>
+      <div onClick={(e) => e.stopPropagation()} className="rise" style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 22, width: "min(500px,100%)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(34,31,24,.28)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: `1px solid ${T.line}`, position: "sticky", top: 0, background: T.surface, zIndex: 1 }}>
+          <h3 style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: T.ink, margin: 0 }}>{title}</h3>
+          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={{ padding: "20px 22px" }}>{children}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", padding: "0 22px 22px" }}>
+          <button className="btn-ghost" onClick={onClose}>取消</button>
+          <button className="btn" disabled={!canSubmit} onClick={onSubmit} style={!canSubmit ? { opacity: .45, cursor: "not-allowed" } : undefined}>{submitLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function Donut({ slices, total, label, baseLabel }) {
+  if (!slices.length || total <= 0) return <div style={{ display: "grid", placeItems: "center", height: 180 }}><div style={{ width: 150, height: 150, borderRadius: "50%", border: `18px solid ${T.surfaceAlt}` }} /></div>;
+  let acc = 0;
+  const stops = slices.map((s) => { const a = (acc / total) * 100; acc += s.value; const b = (acc / total) * 100; return `${s.color} ${a}% ${b}%`; }).join(",");
+  return (
+    <div style={{ position: "relative", width: 180, height: 180, margin: "0 auto" }}>
+      <div style={{ width: 180, height: 180, borderRadius: "50%", background: `conic-gradient(${stops})` }} />
+      <div style={{ position: "absolute", inset: 30, borderRadius: "50%", background: T.surface, display: "grid", placeItems: "center", boxShadow: "inset 0 0 0 1px " + T.line }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, fontWeight: 600 }}>{label}</div>
+          <div style={{ fontFamily: T.serif, fontSize: 19, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(total)}</div>
+          <div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>{baseLabel}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== Main ===================== */
+export default function App() {
+  const [tab, setTab] = useState("overview");
+  const [data, setData] = useState(EMPTY);
+  const [user, setUser] = useState(undefined); // undefined = checking, null = signed out, object = signed in
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+  const [showFx, setShowFx] = useState(false);
+  const [fxStatus, setFxStatus] = useState("idle"); // idle | loading | ok | error
+  const now = new Date();
+  const [curY, setCurY] = useState(now.getFullYear());
+  const [curM, setCurM] = useState(now.getMonth() + 1);
+  const [fcYear, setFcYear] = useState(now.getFullYear());
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(fbAuth, (u) => setUser(u || null));
+    return unsub;
+  }, []);
+  useEffect(() => {
+    if (user === undefined) return;            // still checking auth
+    if (!user) { setLoading(false); return; }  // signed out
+    setLoading(true);
+    (async () => {
+      try {
+        const snap = await getDoc(doc(fbDb, "users", user.uid));
+        if (snap.exists() && snap.data().json) {
+          const o = JSON.parse(snap.data().json);
+          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], payments: o.payments || {}, forecasts: o.forecasts || {} });
+        } else { setData(EMPTY); }
+      } catch (e) { console.error(e); }
+      setLoading(false);
+    })();
+  }, [user]);
+
+  const login = () => signInWithPopup(fbAuth, googleProvider).catch((e) => window.alert("登入失敗:" + (e && e.message ? e.message : e)));
+  const logout = () => { if (window.confirm("登出?(資料已存在雲端,下次登入會回來)")) signOut(fbAuth); };
+
+  const syncRef = useRef(null);
+  const cloudSave = (next) => {
+    const u = fbAuth.currentUser; if (!u) return;
+    clearTimeout(syncRef.current);
+    syncRef.current = setTimeout(() => {
+      setDoc(doc(fbDb, "users", u.uid), { json: JSON.stringify(next), updatedAt: Date.now() }).catch((e) => console.error(e));
+    }, 700);
+  };
+  const persist = (next) => { setData(next); cloudSave(next); };
+
+  // Fetch today's exchange rates (best effort; falls back to manual rates if blocked/offline)
+  const refreshRates = async (silent) => {
+    if (!silent) setFxStatus("loading");
+    try {
+      const res = await fetch("https://open.er-api.com/v6/latest/HKD");
+      const j = await res.json();
+      if (j && j.rates) {
+        setData((prev) => {
+          const r = { ...prev.settings.rates, HKD: 1 };
+          CUR_LIST.forEach((c) => { if (c === "HKD") return; const v = j.rates[c]; if (v) r[c] = +(1 / v).toFixed(4); });
+          const next = { ...prev, settings: { ...prev.settings, rates: r, ratesUpdatedAt: j.time_last_update_utc || new Date().toISOString() } };
+          cloudSave(next);
+          return next;
+        });
+        setFxStatus("ok");
+      } else setFxStatus("error");
+    } catch (e) { setFxStatus("error"); }
+  };
+  useEffect(() => { if (!loading) refreshRates(true); /* eslint-disable-next-line */ }, [loading]);
+
+  const base = data.settings.base;
+  const rates = data.settings.rates;
+  const tb = (amt, c) => numify(amt) * (rates[c] || 1) / (rates[base] || 1);
+  const bMoney = (n) => `${base} ${fmt(n)}`;
+  const lines = useMemo(() => buildLines(data), [data]);
+  // base value of a recorded payment, using the rate locked in at record time when present
+  const paidBase = (rec, currency) => numify(rec.amount) * (rec.rate != null ? rec.rate : (rates[currency] || 1)) / (rates[base] || 1);
+
+  /* ----- dashboard totals ----- */
+  const M = useMemo(() => {
+    const catEx = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0 };
+    const byCur = {}, byCurInc = {};
+    lines.ex.forEach((l) => { const mb = tb(perMonth(l.amount, l.freq), l.currency); catEx[l.cat] += mb; byCur[l.currency] = (byCur[l.currency] || 0) + perMonth(l.amount, l.freq); });
+    lines.inc.forEach((l) => { byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq); });
+    const income = lines.inc.reduce((s, l) => s + tb(perMonth(l.amount, l.freq), l.currency), 0);
+    const expense = EXP_CATS.reduce((s, c) => s + catEx[c], 0);
+    const debtTotal = data.properties.reduce((s, p) => s + tb(p.loan?.principal, p.loan?.currency || "HKD"), 0) + data.debts.reduce((s, d) => s + tb(d.balance, d.currency), 0);
+    return { catEx, byCur, byCurInc, income, expense, balance: income - expense, debtTotal };
+  }, [data, lines]);
+
+  const catSlices = useMemo(() => EXP_CATS.map((c) => ({ name: c, value: M.catEx[c], color: CAT_COLOR[c] })).filter((x) => x.value > 0), [M]);
+
+  const milestones = useMemo(() => {
+    const arr = [];
+    data.properties.forEach((p) => { if (p.loan?.end) arr.push({ name: p.name, sub: "房貸還清", date: p.loan.end, color: T.forest, bg: T.forestSoft }); });
+    data.debts.forEach((d) => { if (d.end) arr.push({ name: d.name, sub: "還清", date: d.end, color: T.neg, bg: "#F6E2DB" }); });
+    data.insurances.forEach((i) => { if (i.end) arr.push({ name: i.name, sub: "繳費期滿", date: i.end, color: T.brass, bg: T.brassSoft }); });
+    return arr.map((x) => ({ ...x, m: monthsUntil(x.date) })).filter((x) => x.m != null).sort((a, b) => a.m - b.m).slice(0, 8);
+  }, [data]);
+
+  const isEmpty = !data.properties.length && !data.insurances.length && !data.debts.length && !data.incomes.length && !data.subscriptions.length;
+
+  /* ----- CRUD ----- */
+  const defaults = {
+    property: { name: "", region: "", loan: { currency: "HKD", principal: "", rate: "", monthly: "", start: "", end: "" }, costs: [] },
+    insurance: { name: "", type: "醫療險", currency: "HKD", premium: "", frequency: "annual", start: "", end: "" },
+    debt: { name: "", kind: "信用卡", currency: "HKD", balance: "", monthly: "", end: "" },
+    income: { name: "", currency: "HKD", amount: "", cycle: "monthly", group: "", note: "" },
+    subscription: { name: "", currency: "USD", amount: "", cycle: "monthly" },
+    living: { name: "", currency: "MOP", amount: "", cycle: "monthly", note: "" },
+    oneoff: { name: "", currency: "MOP", amount: "", date: todayISO(), note: "" },
+  };
+  const titles = { property: "物業", insurance: "保險", debt: "負債", income: "收入來源", subscription: "固定費 / 訂閱", living: "生活費", oneoff: "臨時支出" };
+  const collOf = { property: "properties", insurance: "insurances", debt: "debts", income: "incomes", subscription: "subscriptions", living: "living", oneoff: "oneoffs" };
+
+  const openAdd = (t) => { setForm(JSON.parse(JSON.stringify(defaults[t]))); setModal({ type: t }); };
+  const openEdit = (t, item) => { setForm(JSON.parse(JSON.stringify(item))); setModal({ type: t, id: item.id }); };
+  const close = () => setModal(null);
+  const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const setLoanF = (k, v) => setForm((f) => ({ ...f, loan: { ...(f.loan || {}), [k]: v } }));
+  const addCostRow = () => setForm((f) => ({ ...f, costs: [...(f.costs || []), { id: uid(), label: "", currency: f.loan?.currency || "HKD", amount: "", freq: "monthly" }] }));
+  const setCost = (i, k, v) => setForm((f) => { const costs = [...f.costs]; costs[i] = { ...costs[i], [k]: v }; return { ...f, costs }; });
+  const delCost = (i) => setForm((f) => ({ ...f, costs: f.costs.filter((_, idx) => idx !== i) }));
+
+  const canSubmit = !!modal && !!form.name && form.name.trim().length > 0 && (
+    (modal.type === "property" && numify(form.loan?.monthly) > 0) ||
+    (modal.type === "insurance" && numify(form.premium) > 0) ||
+    (modal.type === "debt" && numify(form.monthly) > 0) ||
+    (modal.type === "income" && numify(form.amount) > 0) ||
+    (modal.type === "subscription" && numify(form.amount) > 0) ||
+    (modal.type === "living" && numify(form.amount) > 0) ||
+    (modal.type === "oneoff" && numify(form.amount) > 0 && !!form.date)
+  );
+
+  const submit = () => {
+    if (!canSubmit) return;
+    const t = modal.type, coll = collOf[t];
+    let rec = { ...form, name: form.name.trim() };
+    if (t === "property") {
+      rec.loan = { ...form.loan, principal: numify(form.loan.principal), rate: numify(form.loan.rate), monthly: numify(form.loan.monthly) };
+      rec.costs = (form.costs || []).filter((c) => c.label && c.label.trim() && numify(c.amount) > 0).map((c) => ({ ...c, amount: numify(c.amount), freq: c.freq || "monthly", id: c.id || uid() }));
+    }
+    if (t === "insurance") rec.premium = numify(form.premium);
+    if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
+    if (t === "income" || t === "subscription" || t === "living" || t === "oneoff") rec.amount = numify(form.amount);
+    const list = modal.id ? data[coll].map((x) => (x.id === modal.id ? { ...rec, id: modal.id } : x)) : [...data[coll], { ...rec, id: uid() }];
+    persist({ ...data, [coll]: list });
+    close();
+  };
+  const remove = (t, id) => { if (window.confirm("確定要刪除這筆資料嗎?")) persist({ ...data, [collOf[t]]: data[collOf[t]].filter((x) => x.id !== id) }); };
+
+  const setRate = (c, v) => persist({ ...data, settings: { ...data.settings, rates: { ...data.settings.rates, [c]: parseFloat(v) || 0 } } });
+  const setBase = (v) => persist({ ...data, settings: { ...data.settings, base: v } });
+
+  /* ----- monthly payment records ----- */
+  const ym = ymOf(curY, curM);
+  const monthRec = data.payments[ym] || {};
+  const togglePaid = (line) => {
+    const recCur = data.payments[ym] || {};
+    const next = { ...recCur };
+    if (next[line.key]) delete next[line.key]; else next[line.key] = { amount: line.amount, date: line.date || todayISO(), rate: rates[line.currency] || 1 };
+    persist({ ...data, payments: { ...data.payments, [ym]: next } });
+  };
+  const editPaid = (line, k, v) => {
+    const recCur = data.payments[ym] || {};
+    if (!recCur[line.key]) return;
+    const val = k === "amount" ? (parseFloat(v) || 0) : v;
+    persist({ ...data, payments: { ...data.payments, [ym]: { ...recCur, [line.key]: { ...recCur[line.key], [k]: val } } } });
+  };
+  const stepMonth = (d) => { let m = curM + d, y = curY; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } setCurM(m); setCurY(y); };
+
+  /* ----- forecast ----- */
+  const setForecast = (cat, v) => persist({ ...data, forecasts: { ...data.forecasts, [fcYear]: { ...(data.forecasts[fcYear] || {}), [cat]: parseFloat(v) || 0 } } });
+
+  const exportData = () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `財務備份_${todayISO()}.json`; a.click(); URL.revokeObjectURL(url); };
+  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
+
+  const TABS = [
+    { key: "overview", label: "總覽", icon: LayoutGrid },
+    { key: "monthly", label: "每月對帳", icon: CalendarCheck },
+    { key: "annual", label: "年度預測", icon: Target },
+    { key: "properties", label: "物業", icon: Building2 },
+    { key: "insurance", label: "保險", icon: Shield },
+    { key: "debts", label: "負債", icon: CreditCard },
+    { key: "income", label: "收入", icon: Coins },
+    { key: "subscriptions", label: "固定費", icon: Repeat },
+    { key: "living", label: "生活費", icon: ShoppingBag },
+    { key: "oneoff", label: "臨時", icon: Receipt },
+  ];
+
+  const css = `
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;600&display=swap');
+    .fin * { box-sizing: border-box; }
+    .card { background:${T.surface}; border:1px solid ${T.line}; border-radius:18px; box-shadow:0 1px 2px rgba(34,31,24,.04); transition:transform .18s ease, box-shadow .18s ease; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 10px 26px rgba(34,31,24,.10); }
+    .card-flat { background:${T.surface}; border:1px solid ${T.line}; border-radius:18px; }
+    .btn { display:inline-flex; align-items:center; gap:7px; font-family:${T.sans}; font-size:13.5px; font-weight:600; color:#FBF7EC; background:${T.forest}; border:none; padding:9px 15px; border-radius:11px; cursor:pointer; transition:background .15s ease, transform .12s ease; }
+    .btn:hover:not(:disabled) { background:#1d3325; transform:translateY(-1px); }
+    .btn-ghost { font-family:${T.sans}; font-size:13.5px; font-weight:600; color:${T.inkSoft}; background:transparent; border:1px solid ${T.line}; padding:9px 15px; border-radius:11px; cursor:pointer; transition:background .15s ease; }
+    .btn-ghost:hover { background:${T.surfaceAlt}; }
+    .icon-btn { display:inline-grid; place-items:center; width:32px; height:32px; border-radius:9px; border:1px solid transparent; background:transparent; color:${T.inkSoft}; cursor:pointer; transition:background .15s ease, color .15s ease; }
+    .icon-btn:hover { background:${T.surfaceAlt}; color:${T.ink}; }
+    .tab { display:inline-flex; align-items:center; gap:7px; font-family:${T.sans}; font-size:14px; font-weight:600; color:${T.inkSoft}; background:transparent; border:none; padding:8px 14px; border-radius:11px; cursor:pointer; white-space:nowrap; transition:all .15s ease; }
+    .tab:hover { color:${T.ink}; background:${T.surfaceAlt}; }
+    .tab.active { color:#FBF7EC; background:${T.forest}; }
+    .inp, .sel { width:100%; font-family:${T.sans}; font-size:14px; color:${T.ink}; background:${T.surface}; border:1px solid ${T.line}; border-radius:11px; padding:10px 12px; outline:none; transition:border-color .15s ease, box-shadow .15s ease; }
+    .inp:focus, .sel:focus { border-color:${T.forest}; box-shadow:0 0 0 3px ${T.forestSoft}; }
+    .sel { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C846F' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .rise { animation: fadeUp .45s ease both; }
+    .fin ::-webkit-scrollbar { height:8px; width:8px; }
+    .fin ::-webkit-scrollbar-thumb { background:${T.line}; border-radius:8px; }
+  `;
+
+  if (user === undefined || (user && loading)) return <div className="fin" style={{ background: T.bg, minHeight: 420, display: "grid", placeItems: "center", borderRadius: 20 }}><style>{css}</style><div style={{ fontFamily: T.sans, color: T.muted, fontSize: 14 }}>{user === undefined ? "檢查登入狀態…" : "載入你的資料中…"}</div></div>;
+  if (!user) return (
+    <div className="fin" style={{ fontFamily: T.sans, color: T.ink, background: T.bg, backgroundImage: `radial-gradient(1200px 500px at 85% -10%, ${T.brassSoft}66, transparent 60%), radial-gradient(900px 400px at -5% 5%, ${T.forestSoft}88, transparent 55%)`, borderRadius: 20, minHeight: 480, display: "grid", placeItems: "center", padding: 24 }}>
+      <style>{css}</style>
+      <div className="card" style={{ padding: "40px 32px", textAlign: "center", maxWidth: 380 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 16, background: T.forest, display: "grid", placeItems: "center", margin: "0 auto 18px", boxShadow: "0 6px 16px rgba(39,65,47,.3)" }}><Wallet size={26} color={T.brassSoft} strokeWidth={2} /></div>
+        <div style={{ fontFamily: T.sans, fontSize: 10.5, fontWeight: 700, letterSpacing: ".22em", color: T.brass }}>MY LEDGER</div>
+        <h1 style={{ fontFamily: T.serif, fontSize: 26, fontWeight: 600, margin: "4px 0 10px" }}>理財帳本</h1>
+        <p style={{ fontFamily: T.sans, fontSize: 13.5, color: T.inkSoft, lineHeight: 1.6, margin: "0 0 22px" }}>用你的 Google 帳號登入。資料存在你自己的雲端,規則設定成<b style={{ color: T.ink }}>只有你看得到</b>,手機電腦自動同步。</p>
+        <button className="btn" style={{ width: "100%", justifyContent: "center", padding: "12px 16px", fontSize: 15 }} onClick={login}>使用 Google 登入</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fin" style={{ fontFamily: T.sans, color: T.ink, background: T.bg, backgroundImage: `radial-gradient(1200px 500px at 85% -10%, ${T.brassSoft}66, transparent 60%), radial-gradient(900px 400px at -5% 5%, ${T.forestSoft}88, transparent 55%)`, borderRadius: 20, padding: "22px clamp(14px,3vw,28px) 30px", minHeight: 480 }}>
+      <style>{css}</style>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 13, background: T.forest, display: "grid", placeItems: "center", boxShadow: "0 4px 12px rgba(39,65,47,.3)" }}><Wallet size={21} color={T.brassSoft} strokeWidth={2} /></div>
+          <div>
+            <div style={{ fontFamily: T.sans, fontSize: 10.5, fontWeight: 700, letterSpacing: ".22em", color: T.brass }}>MY LEDGER</div>
+            <div style={{ fontFamily: T.serif, fontSize: 22, fontWeight: 600, lineHeight: 1.1 }}>理財帳本</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button className="btn-ghost" onClick={exportData} title="匯出備份"><Download size={15} />備份</button>
+          <button className="btn-ghost" onClick={() => fileRef.current?.click()} title="匯入"><Upload size={15} />匯入</button>
+          <input ref={fileRef} type="file" accept="application/json" onChange={importData} style={{ display: "none" }} />
+          <button className="btn-ghost" onClick={logout} title="登出"><LogOut size={15} />登出</button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, marginTop: 18, marginBottom: 22, overflowX: "auto", paddingBottom: 2 }}>
+        {TABS.map((t) => <button key={t.key} className={"tab" + (tab === t.key ? " active" : "")} onClick={() => setTab(t.key)}><t.icon size={16} strokeWidth={2.1} />{t.label}</button>)}
+      </div>
+
+      {/* ============ OVERVIEW ============ */}
+      {tab === "overview" && (
+        isEmpty ? (
+          <EmptyState icon={Wallet} title="開始建立你的財務總覽" desc="從新增物業、保險或收入開始,系統會自動換算多幣別並算出每月結餘。" cta="新增物業" onCta={() => { setTab("properties"); openAdd("property"); }} />
+        ) : (
+          <div>
+            <div className="card-flat" style={{ marginBottom: 16, overflow: "hidden" }}>
+              <button onClick={() => setShowFx((v) => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 18px", background: "transparent", border: "none", cursor: "pointer" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.inkSoft }}><Sliders size={16} color={T.brass} />基準貨幣與匯率 · 目前以 <b style={{ color: T.ink }}>{base}</b> 計算</span>
+                <ChevronDown size={18} color={T.muted} style={{ transform: showFx ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+              </button>
+              {showFx && (
+                <div style={{ padding: "0 18px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: T.sans, fontSize: 13, color: T.inkSoft, fontWeight: 600 }}>基準貨幣</span>
+                    <select className="sel" style={{ width: "auto", minWidth: 150 }} value={base} onChange={(e) => setBase(e.target.value)}>{CUR_LIST.map((c) => <option key={c} value={c}>{c} · {CUR_LABEL[c]}</option>)}</select>
+                    <button className="btn-ghost" style={{ padding: "7px 12px", fontSize: 12.5, marginLeft: "auto" }} onClick={() => refreshRates(false)} disabled={fxStatus === "loading"}>
+                      <RefreshCw size={14} style={fxStatus === "loading" ? { animation: "spin 1s linear infinite" } : undefined} />{fxStatus === "loading" ? "更新中…" : "更新今日匯率"}
+                    </button>
+                  </div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11.5, color: fxStatus === "error" ? T.neg : T.muted, marginBottom: 8 }}>
+                    {fxStatus === "error" ? "自動更新失敗(可能離線或被限制)— 可在下方手動輸入。" : data.settings.ratesUpdatedAt ? `匯率更新於 ${fmtDate(data.settings.ratesUpdatedAt)}。記帳當下會自動鎖定當天匯率。` : "匯率(每 1 單位 = 多少 HKD),可自行調整:"}
+                  </div>
+                  <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))" }}>
+                    {CUR_LIST.filter((c) => c !== "HKD").map((c) => (
+                      <div key={c} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.inkSoft, width: 58 }}>1 {c} =</span>
+                        <input className="inp" type="number" step="0.0001" value={rates[c]} onChange={(e) => setRate(c, e.target.value)} style={{ padding: "7px 9px" }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", marginBottom: 18 }}>
+              <Stat label="每月平均支出" value={bMoney(M.expense)} accent={T.forest} sub={`物業 ${fmt(M.catEx.物業)} · 保險 ${fmt(M.catEx.保險)} · 負債 ${fmt(M.catEx.負債)}`} />
+              <Stat label="每月收入" value={bMoney(M.income)} accent={T.pos} sub={`${data.incomes.length} 個來源`} />
+              <Stat label="每月結餘" value={(M.balance >= 0 ? "+" : "−") + fmt(Math.abs(M.balance))} accent={M.balance >= 0 ? T.pos : T.neg} sub={M.balance >= 0 ? "收入足以支應支出" : "支出超過收入,需從其他來源填補"} />
+              <Stat label="剩餘總負債" value={bMoney(M.debtTotal)} accent={T.neg} sub={`${data.properties.length} 物業 + ${data.debts.length} 負債`} />
+            </div>
+
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))" }}>
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 14 }}>每月支出分類</div>
+                <Donut slices={catSlices} total={M.expense} label="每月支出" baseLabel={base} />
+                <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {catSlices.map((s, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+                      <span style={{ fontFamily: T.sans, fontSize: 13, color: T.inkSoft, flex: 1 }}>{s.name}</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(s.value)}</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, width: 38, textAlign: "right" }}>{Math.round((s.value / M.expense) * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 18 }}>收支比較 <span style={{ fontSize: 12, color: T.muted, fontFamily: T.sans }}>({base})</span></div>
+                {(() => {
+                  const max = Math.max(M.income, M.expense, 1);
+                  const Bar = ({ label, val, color }) => (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{label}</span><span style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{fmt(val)}</span></div>
+                      <div style={{ height: 12, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${(val / max) * 100}%`, background: color, borderRadius: 999, transition: "width .5s ease" }} /></div>
+                    </div>
+                  );
+                  return (<>
+                    <Bar label="每月收入" val={M.income} color={T.pos} />
+                    <Bar label="每月支出" val={M.expense} color={T.forest} />
+                    <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.inkSoft }}>每月結餘</span>
+                      <span style={{ fontFamily: T.serif, fontSize: 23, fontWeight: 600, color: M.balance >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(M.balance >= 0 ? "+" : "−") + fmt(Math.abs(M.balance))}</span>
+                    </div>
+                  </>);
+                })()}
+              </div>
+
+              <div className="card" style={{ padding: 20, gridColumn: "1 / -1" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 6 }}>
+                  <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>各幣別收支(每月)</div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>看清楚你的錢在哪一種貨幣裡進出</div>
+                </div>
+                {(() => {
+                  const curs = Array.from(new Set([...Object.keys(M.byCur), ...Object.keys(M.byCurInc)])).filter((c) => (M.byCur[c] || 0) > 0 || (M.byCurInc[c] || 0) > 0);
+                  curs.sort((a, b) => (tb(M.byCurInc[b] || 0, b) + tb(M.byCur[b] || 0, b)) - (tb(M.byCurInc[a] || 0, a) + tb(M.byCur[a] || 0, a)));
+                  if (!curs.length) return <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted, marginTop: 10 }}>尚無資料。</div>;
+                  return (
+                    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", marginTop: 14 }}>
+                      {curs.map((c) => {
+                        const inc = M.byCurInc[c] || 0, exp = M.byCur[c] || 0, net = inc - exp;
+                        return (
+                          <div key={c} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: "14px 16px", background: T.surfaceAlt }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Badge color={T.forest} bg={T.forestSoft}>{c}</Badge><span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>{CUR_LABEL[c]}</span></div>
+                              <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: net >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(net >= 0 ? "+" : "−") + fmt(Math.abs(net))}</span>
+                            </div>
+                            <div style={{ display: "flex", gap: 18, marginTop: 12 }}>
+                              <Mini label="收入" value={cur(inc, c)} accent={T.pos} />
+                              <Mini label="支出" value={cur(exp, c)} accent={T.forest} />
+                            </div>
+                            <div style={{ marginTop: 10, fontFamily: T.sans, fontSize: 11, color: T.muted, fontVariantNumeric: "tabular-nums" }}>結餘 ≈ {bMoney(tb(net, c))}{c !== base ? ` · 1 ${c} = ${rates[c]} HKD` : ""}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}><Flag size={17} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>還款里程碑</div></div>
+                {milestones.length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted }}>在貸款 / 負債填上結束日期就會出現。</div> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {milestones.map((r, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 11, background: r.bg, display: "grid", placeItems: "center", flexShrink: 0 }}><span style={{ fontFamily: T.serif, fontSize: 13, fontWeight: 600, color: r.color }}>{new Date(r.date).getFullYear().toString().slice(2)}</span></div>
+                        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>{r.sub} · {fmtDate(r.date)}</div></div>
+                        <Badge color={r.m <= 12 ? T.brass : T.inkSoft} bg={r.m <= 12 ? T.brassSoft : T.surfaceAlt}>{countdownText(r.date)}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ============ MONTHLY CHECKLIST ============ */}
+      {tab === "monthly" && (() => {
+        const dueRecur = lines.ex.filter((l) => isDue(l.freq, l.anchor, curM));
+        const dueInc = lines.inc.filter((l) => isDue(l.freq, l.anchor, curM));
+        const monthOneoffs = (data.oneoffs || []).filter((o) => { const p = (o.date || "").split("-").map(Number); return p[0] === curY && p[1] === curM; }).map((o) => ({ key: `oneoff:${o.id}`, cat: "臨時", name: o.name, currency: o.currency, amount: numify(o.amount), date: o.date, oneoff: true }));
+        const dueEx = [...dueRecur, ...monthOneoffs];
+        const expDue = dueEx.reduce((s, l) => s + tb(l.amount, l.currency), 0);
+        const expPaid = dueEx.reduce((s, l) => s + (monthRec[l.key] ? paidBase(monthRec[l.key], l.currency) : 0), 0);
+        const incDue = dueInc.reduce((s, l) => s + tb(l.amount, l.currency), 0);
+        const incGot = dueInc.reduce((s, l) => s + (monthRec[l.key] ? paidBase(monthRec[l.key], l.currency) : 0), 0);
+        const paidCount = dueEx.filter((l) => monthRec[l.key]).length;
+        const Row = ({ line, verb }) => {
+          const paid = !!monthRec[line.key];
+          return (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "10px 0", borderBottom: `1px solid ${T.line}` }}>
+              <button className="icon-btn" onClick={() => togglePaid(line)} style={{ marginTop: 1, color: paid ? T.pos : T.muted, width: 26, height: 26 }} title={paid ? "取消" : verb}>
+                {paid ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+              </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: paid ? T.inkSoft : T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.name}</div>
+                {paid ? <input type="date" value={monthRec[line.key].date || ""} onChange={(e) => editPaid(line, "date", e.target.value)} style={{ marginTop: 4, fontFamily: T.sans, fontSize: 11.5, color: T.muted, background: "transparent", border: "none", padding: 0, cursor: "pointer" }} /> : (line.oneoff && line.date && <div style={{ marginTop: 3, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>{fmtDate(line.date)} 預定</div>)}
+              </div>
+              {line.oneoff ? <Badge color="#6F655A" bg="#ECE6DC">臨時</Badge> : (line.freq !== "monthly" && <Badge color={T.brass} bg={T.brassSoft}>{FREQ[line.freq].short}繳</Badge>)}
+              {paid ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>{line.currency}</span>
+                  <input type="number" value={monthRec[line.key].amount} onChange={(e) => editPaid(line, "amount", e.target.value)} style={{ width: 92, fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.pos, background: T.surface, border: `1px solid ${T.line}`, borderRadius: 9, padding: "6px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }} />
+                </div>
+              ) : (
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{cur(line.amount, line.currency)}</div>
+                  <div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>未{verb === "確認已收" ? "收" : "付"}</div>
+                </div>
+              )}
+            </div>
+          );
+        };
+        return (
+          <div>
+            <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <NavBar label={`${curY}年${curM}月`} onPrev={() => stepMonth(-1)} onNext={() => stepMonth(1)} onToday={() => { setCurY(now.getFullYear()); setCurM(now.getMonth() + 1); }} />
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>本月支出 已付 {paidCount} / {dueEx.length} 項</div>
+                  <div style={{ fontFamily: T.serif, fontSize: 22, fontWeight: 600, color: T.forest, fontVariantNumeric: "tabular-nums" }}>{bMoney(expPaid)} <span style={{ fontFamily: T.sans, fontSize: 13, color: T.muted, fontWeight: 500 }}>/ {bMoney(expDue)}</span></div>
+                </div>
+              </div>
+              <div style={{ height: 10, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden", marginTop: 14 }}><div style={{ height: "100%", width: `${expDue > 0 ? Math.min(100, (expPaid / expDue) * 100) : 0}%`, background: `linear-gradient(90deg,${T.forest},${T.brass})`, borderRadius: 999, transition: "width .5s ease" }} /></div>
+              <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, marginTop: 10 }}>繳費後點左邊圓圈打勾,金額可直接改成實際付的數字。年繳項目(火險、保險)只在該繳的月份出現。</div>
+            </div>
+
+            {EXP_CATS.map((catKey) => {
+              const items = dueEx.filter((l) => l.cat === catKey);
+              if (!items.length) return null;
+              return (
+                <div key={catKey} className="card" style={{ padding: "16px 20px", marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: CAT_COLOR[catKey] }} /><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{catKey}</div></div>
+                  {items.map((l) => <Row key={l.key} line={l} verb="確認已付" />)}
+                </div>
+              );
+            })}
+
+            {monthOneoffs.length > 0 && (
+              <div className="card" style={{ padding: "16px 20px", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: CAT_COLOR["臨時"] }} /><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>臨時 / 一次性</div></div>
+                {monthOneoffs.map((l) => <Row key={l.key} line={l} verb="確認已付" />)}
+              </div>
+            )}
+
+            {dueInc.length > 0 && (
+              <div className="card" style={{ padding: "16px 20px", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: T.pos }} /><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>收入</div></div>
+                  <div style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted, fontVariantNumeric: "tabular-nums" }}>已收 {bMoney(incGot)} / {bMoney(incDue)}</div>
+                </div>
+                {dueInc.map((l) => <Row key={l.key} line={l} verb="確認已收" />)}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ============ ANNUAL FORECAST ============ */}
+      {tab === "annual" && (() => {
+        const lineMap = {}; [...lines.ex, ...lines.inc].forEach((l) => { lineMap[l.key] = l; });
+        (data.oneoffs || []).forEach((o) => { lineMap[`oneoff:${o.id}`] = { key: `oneoff:${o.id}`, cat: "臨時", name: o.name, currency: o.currency }; });
+        const actual = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
+        const monthlySpend = Array(12).fill(0);
+        for (let mm = 1; mm <= 12; mm++) {
+          const rec = data.payments[ymOf(fcYear, mm)] || {};
+          Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat !== "收入") monthlySpend[mm - 1] += b; });
+        }
+        const fcDefault = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
+        lines.ex.forEach((l) => { fcDefault[l.cat] += tb(perMonth(l.amount, l.freq), l.currency) * 12; });
+        lines.inc.forEach((l) => { fcDefault["收入"] += tb(perMonth(l.amount, l.freq), l.currency) * 12; });
+        const fcStore = data.forecasts[fcYear] || {};
+        const fcVal = (c) => (fcStore[c] != null ? fcStore[c] : Math.round(fcDefault[c]));
+        const ANN_CATS = [...EXP_CATS, "臨時"];
+        const expFc = ANN_CATS.reduce((s, c) => s + fcVal(c), 0);
+        const expAct = ANN_CATS.reduce((s, c) => s + actual[c], 0);
+        const applyDefaults = () => persist({ ...data, forecasts: { ...data.forecasts, [fcYear]: { 物業: Math.round(fcDefault.物業), 保險: Math.round(fcDefault.保險), 負債: Math.round(fcDefault.負債), 固定費: Math.round(fcDefault.固定費), 生活費: Math.round(fcDefault.生活費), 臨時: fcStore.臨時 != null ? fcStore.臨時 : 0, 收入: Math.round(fcDefault.收入) } } });
+        const isCurYear = fcYear === now.getFullYear();
+        const maxSpend = Math.max(...monthlySpend, 1);
+        const RowFc = ({ c }) => {
+          const f = fcVal(c), a = actual[c], diff = a - f;
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: CAT_COLOR[c] }} /><span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600 }}>{c}</span></div>
+              <input type="number" value={fcVal(c)} onChange={(e) => setForecast(c, e.target.value)} style={{ width: "100%", fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.inkSoft, background: T.surface, border: `1px solid ${T.line}`, borderRadius: 9, padding: "6px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }} />
+              <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 13.5, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(a)}</div>
+              <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 13, fontWeight: 700, color: a === 0 ? T.muted : diff > 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{a === 0 ? "—" : (diff > 0 ? "+" : "") + fmt(diff)}</div>
+            </div>
+          );
+        };
+        return (
+          <div>
+            <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <NavBar label={`${fcYear}年`} onPrev={() => setFcYear(fcYear - 1)} onNext={() => setFcYear(fcYear + 1)} onToday={isCurYear ? null : () => setFcYear(now.getFullYear())} />
+                <button className="btn-ghost" style={{ fontSize: 12.5 }} onClick={applyDefaults}><RotateCcw size={14} />套用目前推算</button>
+              </div>
+              <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginTop: 10 }}>填入這一年的「預測」預算(可先按「套用目前推算」帶入,再手動調整)。「實際」會隨你每月在「每月對帳」確認已付而自動累積,年尾即可對比。金額皆以 {base} 計。</div>
+            </div>
+
+            <div className="card" style={{ padding: 20, marginBottom: 16, overflowX: "auto" }}>
+              <div style={{ minWidth: 380 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, paddingBottom: 8, borderBottom: `1.5px solid ${T.line}` }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.muted }}>支出類別</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.muted, textAlign: "right" }}>預測</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.muted, textAlign: "right" }}>實際</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.muted, textAlign: "right" }}>差異</span>
+                </div>
+                {EXP_CATS.map((c) => <RowFc key={c} c={c} />)}
+                <RowFc c="臨時" />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, alignItems: "center", paddingTop: 11 }}>
+                  <span style={{ fontFamily: T.serif, fontSize: 15, fontWeight: 600 }}>支出合計</span>
+                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.inkSoft, fontVariantNumeric: "tabular-nums" }}>{fmt(expFc)}</span>
+                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(expAct)}</span>
+                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: expAct === 0 ? T.muted : expAct - expFc > 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{expAct === 0 ? "—" : (expAct - expFc > 0 ? "+" : "") + fmt(expAct - expFc)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))" }}>
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 16 }}>預測 vs 實際 · 支出</div>
+                {(() => {
+                  const max = Math.max(expFc, expAct, 1);
+                  const Bar = ({ label, val, color }) => (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{label}</span><span style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{bMoney(val)}</span></div>
+                      <div style={{ height: 12, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${(val / max) * 100}%`, background: color, borderRadius: 999, transition: "width .5s ease" }} /></div>
+                    </div>
+                  );
+                  return (<>
+                    <Bar label="預測支出" val={expFc} color={T.brass} />
+                    <Bar label="實際支出" val={expAct} color={T.forest} />
+                    <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{expAct > expFc ? "超出預算" : "結餘 / 尚未用完"}</span>
+                      <span style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: expAct > expFc ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{(expAct - expFc > 0 ? "+" : "−") + fmt(Math.abs(expAct - expFc))}</span>
+                    </div>
+                  </>);
+                })()}
+              </div>
+
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 6 }}>收入 · 預測 vs 實際</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${T.line}` }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.pos }}>收入</span>
+                  <input type="number" value={fcVal("收入")} onChange={(e) => setForecast("收入", e.target.value)} style={{ width: "100%", fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.inkSoft, background: T.surface, border: `1px solid ${T.line}`, borderRadius: 9, padding: "6px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }} />
+                  <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 13.5, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(actual.收入)}</div>
+                  <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 13, fontWeight: 700, color: actual.收入 === 0 ? T.muted : T.pos, fontVariantNumeric: "tabular-nums" }}>{actual.收入 === 0 ? "—" : (actual.收入 - fcVal("收入") > 0 ? "+" : "") + fmt(actual.收入 - fcVal("收入"))}</div>
+                </div>
+                <div style={{ marginTop: 14, padding: "12px 14px", background: T.surfaceAlt, borderRadius: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>預計全年結餘</span>
+                    <span style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: fcVal("收入") - expFc >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(fcVal("收入") - expFc >= 0 ? "+" : "−") + fmt(Math.abs(fcVal("收入") - expFc))}</span>
+                  </div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginTop: 4 }}>= 預測收入 − 預測支出</div>
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 20, gridColumn: "1 / -1" }}>
+                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 16 }}>{fcYear} 年各月實際支出</div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: "min(2vw,10px)", height: 130 }}>
+                  {monthlySpend.map((v, i) => (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                      <div style={{ fontFamily: T.sans, fontSize: 9, color: T.muted, fontVariantNumeric: "tabular-nums" }}>{v > 0 ? fmt(v / 1000) + "k" : ""}</div>
+                      <div style={{ width: "100%", maxWidth: 26, height: `${(v / maxSpend) * 88}px`, minHeight: v > 0 ? 3 : 0, background: i + 1 === curM && fcYear === curY ? T.brass : T.forest, borderRadius: "5px 5px 0 0", transition: "height .4s ease" }} />
+                      <div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>{i + 1}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ============ PROPERTIES ============ */}
+      {tab === "properties" && (
+        <div>
+          <SectionHeader title="物業" count={data.properties.length} onAdd={() => openAdd("property")} addLabel="新增物業" />
+          {data.properties.length === 0 ? <EmptyState icon={Building2} title="還沒有物業" desc="每個物業可放房貸、保險貸款、火險、管理費、水電網等費用,系統會自動換算各幣別並算出每月合計。" cta="新增物業" onCta={() => openAdd("property")} /> : (
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))" }}>
+              {data.properties.map((p) => {
+                const ln = p.loan || {};
+                const monthlyBase = tb(ln.monthly, ln.currency || "HKD") + (p.costs || []).reduce((a, c) => a + tb(perMonth(c.amount, c.freq || "monthly"), c.currency), 0);
+                const mInt = numify(ln.principal) * numify(ln.rate) / 100 / 12;
+                const mPrin = Math.max(0, numify(ln.monthly) - mInt);
+                let prog = null, paidM = null, totalM = null;
+                if (ln.start && ln.end) { const s = new Date(ln.start), e = new Date(ln.end); totalM = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()); paidM = (now.getFullYear() - s.getFullYear()) * 12 + (now.getMonth() - s.getMonth()); if (totalM > 0) prog = Math.min(100, Math.max(0, (paidM / totalM) * 100)); }
+                return (
+                  <div key={p.id} className="card rise" style={{ padding: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div><div style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600 }}>{p.name}</div>{p.region && <div style={{ marginTop: 5 }}><Badge>{p.region}</Badge></div>}</div>
+                      <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("property", p)}><Pencil size={15} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("property", p.id)}><Trash2 size={15} /></IconBtn></div>
+                    </div>
+                    {numify(ln.monthly) > 0 && (<>
+                      <div style={{ marginTop: 12, fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>房貸 · 每月還款</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}><span style={{ fontFamily: T.serif, fontSize: 26, fontWeight: 600, color: T.forest, fontVariantNumeric: "tabular-nums" }}>{cur(ln.monthly, ln.currency)}</span></div>
+                      <CardRow><Mini label="剩餘本金" value={cur(ln.principal, ln.currency)} accent={T.neg} /><Mini label="年利率" value={numify(ln.rate).toFixed(2) + "%"} /><Mini label="還清日期" value={ln.end ? fmtDate(ln.end) : "—"} /></CardRow>
+                      {numify(ln.rate) > 0 && <div style={{ marginTop: 12, padding: "9px 12px", background: T.surfaceAlt, borderRadius: 11, fontFamily: T.sans, fontSize: 12.5, color: T.inkSoft }}>每月還款中 · 利息約 <b style={{ color: T.neg }}>{cur(mInt, ln.currency)}</b>,本金約 <b style={{ color: T.forest }}>{cur(mPrin, ln.currency)}</b></div>}
+                      {prog != null && <div style={{ marginTop: 12 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontFamily: T.sans, fontSize: 12, color: T.muted }}><span>已繳 {Math.max(0, paidM)} / 共 {totalM} 期</span><span>{countdownText(ln.end)}</span></div><div style={{ height: 8, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${prog}%`, background: `linear-gradient(90deg,${T.forest},${T.brass})`, borderRadius: 999 }} /></div></div>}
+                    </>)}
+                    {(p.costs || []).length > 0 && (
+                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.line}` }}>
+                        <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600, marginBottom: 8 }}>其他費用</div>
+                        {p.costs.map((c) => <div key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontFamily: T.sans, fontSize: 13 }}><span style={{ color: T.inkSoft }}>{c.label}{c.freq && c.freq !== "monthly" ? ` · ${FREQ[c.freq].short}繳` : ""}</span><span style={{ fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{cur(c.amount, c.currency)}</span></div>)}
+                      </div>
+                    )}
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>每月平均合計</span><span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(monthlyBase)}</span></div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ INSURANCE ============ */}
+      {tab === "insurance" && (
+        <div>
+          <SectionHeader title="保險" count={data.insurances.length} onAdd={() => openAdd("insurance")} addLabel="新增保險" />
+          {data.insurances.length === 0 ? <EmptyState icon={Shield} title="還沒有保險" desc="記下每張保單的險種、保費與繳費頻率,自動換算每月平均並計入支出。" cta="新增保險" onCta={() => openAdd("insurance")} /> : (
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
+              {data.insurances.map((i) => (
+                <div key={i.id} className="card rise" style={{ padding: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, lineHeight: 1.25 }}>{i.name}</div><div style={{ marginTop: 6, display: "flex", gap: 6 }}><Badge color={T.brass} bg={T.brassSoft}>{i.type}</Badge><Badge>{i.currency}</Badge></div></div>
+                    <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("insurance", i)}><Pencil size={15} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("insurance", i.id)}><Trash2 size={15} /></IconBtn></div>
+                  </div>
+                  <div style={{ marginTop: 12, display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: T.serif, fontSize: 24, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{cur(i.premium, i.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 13, color: T.muted }}>/ {FREQ[i.frequency]?.label}</span></div>
+                  <CardRow><Mini label="每月平均" value={cur(perMonth(i.premium, i.frequency), i.currency)} accent={T.forest} /><Mini label="≈ 折合" value={bMoney(tb(perMonth(i.premium, i.frequency), i.currency))} /><Mini label="繳費期滿" value={i.end ? fmtDate(i.end) : "—"} /></CardRow>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ DEBTS ============ */}
+      {tab === "debts" && (
+        <div>
+          <SectionHeader title="負債" count={data.debts.length} onAdd={() => openAdd("debt")} addLabel="新增負債" />
+          {data.debts.length === 0 ? <EmptyState icon={CreditCard} title="還沒有負債" desc="信用卡、私人貸款、學費貸款等,記下每月還款與剩餘金額。" cta="新增負債" onCta={() => openAdd("debt")} /> : (
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
+              {data.debts.map((d) => (
+                <div key={d.id} className="card rise" style={{ padding: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div><div style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600 }}>{d.name}</div><div style={{ marginTop: 6, display: "flex", gap: 6 }}><Badge color={T.neg} bg="#F6E2DB">{d.kind}</Badge><Badge>{d.currency}</Badge></div></div>
+                    <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("debt", d)}><Pencil size={15} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("debt", d.id)}><Trash2 size={15} /></IconBtn></div>
+                  </div>
+                  <div style={{ marginTop: 12, display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: T.serif, fontSize: 26, fontWeight: 600, color: T.neg, fontVariantNumeric: "tabular-nums" }}>{cur(d.monthly, d.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 13, color: T.muted }}>/ 月</span></div>
+                  <CardRow><Mini label="剩餘金額" value={cur(d.balance, d.currency)} /><Mini label="還清日期" value={d.end ? fmtDate(d.end) : "—"} /><Mini label="還款進度" value={countdownText(d.end) || "—"} accent={T.forest} /></CardRow>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ INCOME ============ */}
+      {tab === "income" && (
+        <div>
+          <SectionHeader title="收入來源" count={data.incomes.length} onAdd={() => openAdd("income")} addLabel="新增來源" />
+          {data.incomes.length === 0 ? <EmptyState icon={Coins} title="還沒有收入來源" desc="薪金、租金、家用等,系統用來對照支出、算出結餘。" cta="新增來源" onCta={() => openAdd("income")} /> : (() => {
+            const order = []; const groups = {};
+            data.incomes.forEach((i) => { const g = (i.group && i.group.trim()) || "其他"; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(i); });
+            return (
+              <div>
+                {order.map((g) => {
+                  const items = groups[g];
+                  const sub = items.reduce((s, i) => s + tb(perMonth(i.amount, i.cycle), i.currency), 0);
+                  return (
+                    <div key={g} style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 7, borderBottom: `1px solid ${T.line}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: T.pos }} /><span style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{g}</span><Badge color={T.pos} bg="#E4EEE7">{items.length}</Badge></div>
+                        <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 700, color: T.pos, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(sub)} / 月</span>
+                      </div>
+                      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))" }}>
+                        {items.map((i) => (
+                          <div key={i.id} className="card rise" style={{ padding: 18 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{i.name}</div><div style={{ marginTop: 5 }}><Badge>{i.currency}</Badge></div></div>
+                              <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("income", i)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("income", i.id)}><Trash2 size={14} /></IconBtn></div>
+                            </div>
+                            <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: T.serif, fontSize: 21, fontWeight: 600, color: T.pos, fontVariantNumeric: "tabular-nums" }}>{cur(i.amount, i.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>/ {CYCLE[i.cycle]?.label}</span></div>
+                            <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>≈ {bMoney(tb(perMonth(i.amount, i.cycle), i.currency))} / 月</div>
+                            {i.note && <div style={{ marginTop: 7, fontFamily: T.sans, fontSize: 12, color: T.inkSoft }}>{i.note}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ============ SUBSCRIPTIONS ============ */}
+      {tab === "subscriptions" && (
+        <div>
+          <SectionHeader title="固定費 / 訂閱" count={data.subscriptions.length} onAdd={() => openAdd("subscription")} addLabel="新增" />
+          {data.subscriptions.length === 0 ? <EmptyState icon={Repeat} title="還沒有訂閱" desc="ChatGPT、YouTube 等每月固定的小額訂閱。" cta="新增訂閱" onCta={() => openAdd("subscription")} /> : (
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }}>
+              {data.subscriptions.map((s) => (
+                <div key={s.id} className="card rise" style={{ padding: 18 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{s.name}</div><div style={{ marginTop: 5 }}><Badge>{s.currency}</Badge></div></div>
+                    <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("subscription", s)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("subscription", s.id)}><Trash2 size={14} /></IconBtn></div>
+                  </div>
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 5 }}><span style={{ fontFamily: T.serif, fontSize: 21, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{cur(s.amount, s.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>/ {CYCLE[s.cycle]?.label}</span></div>
+                  <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>≈ {bMoney(tb(perMonth(s.amount, s.cycle), s.currency))} / 月</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ LIVING ============ */}
+      {tab === "living" && (
+        <div>
+          <SectionHeader title="生活費 / 平時開支" count={data.living.length} onAdd={() => openAdd("living")} addLabel="新增" />
+          {data.living.length === 0 ? <EmptyState icon={ShoppingBag} title="還沒有生活費" desc="家用、零用錢、手機費等平時每月要付、金額常浮動的費用。" cta="新增生活費" onCta={() => openAdd("living")} /> : (
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
+              {data.living.map((s) => (
+                <div key={s.id} className="card rise" style={{ padding: 18 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{s.name}</div><div style={{ marginTop: 5 }}><Badge color="#7A5A3A" bg="#F0E4D4">{s.currency}</Badge></div></div>
+                    <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("living", s)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("living", s.id)}><Trash2 size={14} /></IconBtn></div>
+                  </div>
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 5 }}><span style={{ fontFamily: T.serif, fontSize: 21, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{cur(s.amount, s.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>/ {CYCLE[s.cycle]?.label}</span></div>
+                  <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>≈ {bMoney(tb(perMonth(s.amount, s.cycle), s.currency))} / 月</div>
+                  {s.note && <div style={{ marginTop: 8, fontFamily: T.sans, fontSize: 12.5, color: T.inkSoft }}>{s.note}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============ ONE-OFF ============ */}
+      {tab === "oneoff" && (
+        <div>
+          <SectionHeader title="臨時 / 一次性支出" count={data.oneoffs.length} onAdd={() => openAdd("oneoff")} addLabel="新增" />
+          <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>機票、家電、律師費等偶發的大額支出。每筆會計入它日期所在的「每月對帳」與「年度預測」的實際支出,但不會攤進每月平均。</div>
+          {data.oneoffs.length === 0 ? <EmptyState icon={Receipt} title="還沒有臨時支出" desc="記一筆某天發生的一次性費用,指定日期與金額即可。" cta="新增臨時支出" onCta={() => openAdd("oneoff")} /> : (() => {
+            const sorted = [...data.oneoffs].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+            const total = sorted.reduce((s, o) => s + tb(o.amount, o.currency), 0);
+            return (
+              <div>
+                <div className="card-flat" style={{ padding: "12px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>全部臨時支出合計</span>
+                  <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(total)}</span>
+                </div>
+                <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
+                  {sorted.map((o) => (
+                    <div key={o.id} className="card rise" style={{ padding: 18 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ minWidth: 0 }}><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{o.name}</div><div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}><Badge color="#6F655A" bg="#ECE6DC">{fmtDate(o.date)}</Badge><Badge>{o.currency}</Badge></div></div>
+                        <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("oneoff", o)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("oneoff", o.id)}><Trash2 size={14} /></IconBtn></div>
+                      </div>
+                      <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: T.serif, fontSize: 21, fontWeight: 600, color: T.neg, fontVariantNumeric: "tabular-nums" }}>{cur(o.amount, o.currency)}</span></div>
+                      <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>≈ {bMoney(tb(o.amount, o.currency))}</div>
+                      {o.note && <div style={{ marginTop: 7, fontFamily: T.sans, fontSize: 12, color: T.inkSoft }}>{o.note}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ marginTop: 28, paddingTop: 16, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>資料自動儲存於此瀏覽器。建議定期「備份」匯出一份 JSON。</span>
+        <div style={{ display: "flex", gap: 14 }}>
+          <button onClick={() => { if (window.confirm("確定清除全部資料?雲端的資料也會被覆蓋成空白,此動作無法復原。")) persist(EMPTY); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: T.sans, fontSize: 12, color: T.muted, background: "none", border: "none", cursor: "pointer" }}><RotateCcw size={13} />清除全部</button>
+        </div>
+      </div>
+
+      {/* ============ MODAL ============ */}
+      {modal && (
+        <Modal title={(modal.id ? "編輯" : "新增") + titles[modal.type]} onClose={close} onSubmit={submit} canSubmit={canSubmit} submitLabel={modal.id ? "儲存變更" : "新增"}>
+          {modal.type === "property" && (<>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}>
+              <Field label="物業名稱"><input className="inp" placeholder="例如:聯榮大廈" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+              <Field label="地區"><input className="inp" placeholder="澳門" value={form.region} onChange={(e) => setF("region", e.target.value)} /></Field>
+            </div>
+            <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: T.forest, margin: "4px 0 12px" }}>房貸</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="每月還款"><input className="inp" type="number" inputMode="decimal" placeholder="例如 15000" value={form.loan?.monthly} onChange={(e) => setLoanF("monthly", e.target.value)} /></Field>
+              <Field label="貨幣"><CurSelect value={form.loan?.currency} onChange={(v) => setLoanF("currency", v)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="剩餘本金"><input className="inp" type="number" inputMode="decimal" placeholder="例如 3000000" value={form.loan?.principal} onChange={(e) => setLoanF("principal", e.target.value)} /></Field>
+              <Field label="年利率 (%)"><input className="inp" type="number" step="0.001" inputMode="decimal" placeholder="例如 2.8" value={form.loan?.rate} onChange={(e) => setLoanF("rate", e.target.value)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="開始日期"><input className="inp" type="date" value={form.loan?.start} onChange={(e) => setLoanF("start", e.target.value)} /></Field>
+              <Field label="還清日期"><input className="inp" type="date" value={form.loan?.end} onChange={(e) => setLoanF("end", e.target.value)} /></Field>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 10px" }}>
+              <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: T.forest }}>其他費用</span>
+              <button className="btn-ghost" style={{ padding: "5px 11px", fontSize: 12.5 }} onClick={addCostRow}><Plus size={14} />加一項</button>
+            </div>
+            {(form.costs || []).map((c, idx) => (
+              <div key={c.id || idx} style={{ display: "grid", gridTemplateColumns: "1fr 70px 1fr 78px 28px", gap: 6, marginBottom: 8, alignItems: "center" }}>
+                <input className="inp" placeholder="火險…" value={c.label} onChange={(e) => setCost(idx, "label", e.target.value)} style={{ padding: "8px 9px" }} />
+                <select className="sel" value={c.currency} onChange={(e) => setCost(idx, "currency", e.target.value)} style={{ padding: "8px 20px 8px 7px" }}>{CUR_LIST.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+                <input className="inp" type="number" inputMode="decimal" placeholder="金額" value={c.amount} onChange={(e) => setCost(idx, "amount", e.target.value)} style={{ padding: "8px 9px" }} />
+                <select className="sel" value={c.freq || "monthly"} onChange={(e) => setCost(idx, "freq", e.target.value)} style={{ padding: "8px 20px 8px 7px" }}>{Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.short}</option>)}</select>
+                <button className="icon-btn" style={{ color: T.neg }} onClick={() => delCost(idx)}><X size={15} /></button>
+              </div>
+            ))}
+            {(form.costs || []).length === 0 && <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 4 }}>可加入保險貸款、火險、管理費、水電網等。火險等可選「年」繳。</div>}
+          </>)}
+
+          {modal.type === "insurance" && (<>
+            <Field label="保險名稱"><input className="inp" placeholder="例如:優裕醫療保" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="險種"><select className="sel" value={form.type} onChange={(e) => setF("type", e.target.value)}>{INS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></Field>
+              <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="保費金額" hint="每次繳的金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 6000" value={form.premium} onChange={(e) => setF("premium", e.target.value)} /></Field>
+              <Field label="繳費頻率"><select className="sel" value={form.frequency} onChange={(e) => setF("frequency", e.target.value)}>{Object.entries(FREQ).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="生效日期" hint="(決定年繳在哪個月扣)"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
+              <Field label="繳費期滿"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
+            </div>
+          </>)}
+
+          {modal.type === "debt" && (<>
+            <Field label="名稱"><input className="inp" placeholder="例如:HSBC 萬應錢" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="類型"><select className="sel" value={form.kind} onChange={(e) => setF("kind", e.target.value)}>{DEBT_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></Field>
+              <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="每月還款"><input className="inp" type="number" inputMode="decimal" placeholder="例如 2000" value={form.monthly} onChange={(e) => setF("monthly", e.target.value)} /></Field>
+              <Field label="剩餘金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 100000" value={form.balance} onChange={(e) => setF("balance", e.target.value)} /></Field>
+            </div>
+            <Field label="還清日期"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
+          </>)}
+
+          {modal.type === "income" && (<>
+            <Field label="來源名稱"><input className="inp" placeholder="例如:聯榮 1、薪金、家用" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 3000" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
+              <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+              <Field label="群組" hint="同來源會歸在一起,如:聯榮大廈、前山、日本"><input className="inp" placeholder="聯榮大廈" value={form.group} onChange={(e) => setF("group", e.target.value)} /></Field>
+            </div>
+            <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
+          </>)}
+
+          {modal.type === "subscription" && (<>
+            <Field label="名稱"><input className="inp" placeholder="例如:ChatGPT" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="金額"><input className="inp" type="number" inputMode="decimal" placeholder="22" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
+              <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+          </>)}
+
+          {modal.type === "living" && (<>
+            <Field label="名稱"><input className="inp" placeholder="例如:零用錢、手機費、家用" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="金額" hint="平時的金額,每月可在「每月對帳」改實際數"><input className="inp" type="number" inputMode="decimal" placeholder="例如 5000" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
+              <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+              <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
+            </div>
+          </>)}
+
+          {modal.type === "oneoff" && (<>
+            <Field label="項目名稱"><input className="inp" placeholder="例如:機票、家電、律師費" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="金額"><input className="inp" type="number" inputMode="decimal" placeholder="例如 3000" value={form.amount} onChange={(e) => setF("amount", e.target.value)} /></Field>
+              <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="日期" hint="決定它算在哪個月 / 哪一年"><input className="inp" type="date" value={form.date} onChange={(e) => setF("date", e.target.value)} /></Field>
+              <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
+            </div>
+          </>)}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+const _rootEl = document.getElementById("root");
+createRoot(_rootEl).render(<App />);
+
+</script>
+</body>
+</html>
