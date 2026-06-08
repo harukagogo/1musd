@@ -32,7 +32,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Wallet, Building2, Shield, CreditCard, Coins, Repeat, Plus, Trash2, Pencil, X,
   Download, Upload, RotateCcw, LayoutGrid, Sliders, Flag, ChevronDown, ArchiveRestore,
-  CalendarCheck, Target, ChevronLeft, ChevronRight, CheckCircle2, Circle, ShoppingBag, Receipt, RefreshCw, LogOut,
+  CalendarCheck, Target, ChevronLeft, ChevronRight, CheckCircle2, Circle, ShoppingBag, Receipt, RefreshCw, LogOut, MapPin,
 } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -117,7 +117,7 @@ function buildLines(data) {
   data.debts.forEach((d) => ex.push({ key: `debt:${d.id}`, cat: "負債", name: d.name, currency: d.currency, amount: numify(d.monthly), freq: "monthly", anchor: 1 }));
   data.subscriptions.forEach((s) => ex.push({ key: `sub:${s.id}`, cat: "固定費", name: s.name, currency: s.currency, amount: numify(s.amount), freq: s.cycle || "monthly", anchor: 1 }));
   (data.living || []).forEach((x) => ex.push({ key: `liv:${x.id}`, cat: "生活費", name: x.name, currency: x.currency, amount: numify(x.amount), freq: x.cycle || "monthly", anchor: 1 }));
-  data.incomes.forEach((i) => inc.push({ key: `inc:${i.id}`, cat: "收入", name: i.name, currency: i.currency, amount: numify(i.amount), freq: i.cycle || "monthly", anchor: 1, start: i.start || "", end: i.end || "" }));
+  data.incomes.forEach((i) => inc.push({ key: `inc:${i.id}`, cat: "收入", name: i.name, currency: i.currency, amount: numify(i.amount), freq: i.cycle || "monthly", anchor: 1, start: i.start || "", end: i.end || "", account: i.account || "" }));
   return { ex, inc };
 }
 
@@ -299,11 +299,19 @@ export default function App() {
     const byCur = {}, byCurInc = {};
     lines.ex.forEach((l) => { const mb = tb(perMonth(l.amount, l.freq), l.currency); catEx[l.cat] += mb; byCur[l.currency] = (byCur[l.currency] || 0) + perMonth(l.amount, l.freq); });
     const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
-    lines.inc.forEach((l) => { if (!activeRange(l.start, l.end, nowY, nowM)) return; byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq); });
+    const byAcct = {};
+    lines.inc.forEach((l) => {
+      if (!activeRange(l.start, l.end, nowY, nowM)) return;
+      byCurInc[l.currency] = (byCurInc[l.currency] || 0) + perMonth(l.amount, l.freq);
+      const a = (l.account && l.account.trim()) || "未指定";
+      if (!byAcct[a]) byAcct[a] = { base: 0, byCur: {} };
+      byAcct[a].base += tb(perMonth(l.amount, l.freq), l.currency);
+      byAcct[a].byCur[l.currency] = (byAcct[a].byCur[l.currency] || 0) + perMonth(l.amount, l.freq);
+    });
     const income = lines.inc.reduce((s, l) => s + (activeRange(l.start, l.end, nowY, nowM) ? tb(perMonth(l.amount, l.freq), l.currency) : 0), 0);
     const expense = EXP_CATS.reduce((s, c) => s + catEx[c], 0);
     const debtTotal = data.properties.reduce((s, p) => s + tb(p.loan?.principal, p.loan?.currency || "HKD") + (p.costs || []).reduce((a, c) => a + (c.isLoan ? tb(c.principal, c.currency) : 0), 0), 0) + data.debts.reduce((s, d) => s + tb(d.balance, d.currency), 0);
-    return { catEx, byCur, byCurInc, income, expense, balance: income - expense, debtTotal };
+    return { catEx, byCur, byCurInc, byAcct, income, expense, balance: income - expense, debtTotal };
   }, [data, lines]);
 
   const catSlices = useMemo(() => EXP_CATS.map((c) => ({ name: c, value: M.catEx[c], color: CAT_COLOR[c] })).filter((x) => x.value > 0), [M]);
@@ -323,7 +331,7 @@ export default function App() {
     property: { name: "", region: "", loan: { currency: "HKD", principal: "", rate: "", monthly: "", start: "", end: "" }, costs: [] },
     insurance: { name: "", type: "醫療險", currency: "HKD", premium: "", frequency: "annual", start: "", end: "" },
     debt: { name: "", kind: "信用卡", currency: "HKD", balance: "", monthly: "", end: "" },
-    income: { name: "", currency: "HKD", amount: "", cycle: "monthly", group: "", start: "", end: "", note: "" },
+    income: { name: "", currency: "HKD", amount: "", cycle: "monthly", group: "", account: "", start: "", end: "", note: "" },
     subscription: { name: "", currency: "USD", amount: "", cycle: "monthly" },
     living: { name: "", currency: "MOP", amount: "", cycle: "monthly", note: "" },
     oneoff: { name: "", currency: "MOP", amount: "", date: todayISO(), note: "" },
@@ -582,6 +590,35 @@ export default function App() {
                               <Mini label="支出" value={cur(exp, c)} accent={T.forest} />
                             </div>
                             <div style={{ marginTop: 10, fontFamily: T.sans, fontSize: 11, color: T.muted, fontVariantNumeric: "tabular-nums" }}>結餘 ≈ {bMoney(tb(net, c))}{c !== base ? ` · 1 ${c} = ${rates[c]} HKD` : ""}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="card" style={{ padding: 20, gridColumn: "1 / -1" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}><MapPin size={17} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>各地點收入(每月)</div></div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>你的錢實際落在哪裡</div>
+                </div>
+                {(() => {
+                  const accts = Object.keys(M.byAcct).sort((a, b) => M.byAcct[b].base - M.byAcct[a].base);
+                  if (!accts.length) return <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted, marginTop: 10 }}>在收入填上「存放地點」(例如:中國微信、香港銀行),這裡就會依地點分開顯示。</div>;
+                  return (
+                    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(215px,1fr))", marginTop: 14 }}>
+                      {accts.map((a) => {
+                        const info = M.byAcct[a];
+                        return (
+                          <div key={a} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: "14px 16px", background: T.surfaceAlt }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a}</span>
+                              <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.pos, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(info.base)}</span>
+                            </div>
+                            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {Object.entries(info.byCur).sort((x, y) => tb(y[1], y[0]) - tb(x[1], x[0])).map(([c, v]) => <Badge key={c} color={T.forest} bg={T.forestSoft}>{cur(v, c)} / 月</Badge>)}
+                            </div>
                           </div>
                         );
                       })}
@@ -921,7 +958,7 @@ export default function App() {
                         {items.map((i) => (
                           <div key={i.id} className="card rise" style={{ padding: 18 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                              <div><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{i.name}</div><div style={{ marginTop: 5 }}><Badge>{i.currency}</Badge></div></div>
+                              <div><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>{i.name}</div><div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}><Badge>{i.currency}</Badge>{i.account && <Badge color={T.brass} bg={T.brassSoft}>{i.account}</Badge>}</div></div>
                               <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("income", i)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("income", i.id)}><Trash2 size={14} /></IconBtn></div>
                             </div>
                             <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: T.serif, fontSize: 21, fontWeight: 600, color: T.pos, fontVariantNumeric: "tabular-nums" }}>{cur(i.amount, i.currency)}</span><span style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>/ {CYCLE[i.cycle]?.label}</span></div>
@@ -1124,6 +1161,7 @@ export default function App() {
               <Field label="週期"><select className="sel" value={form.cycle} onChange={(e) => setF("cycle", e.target.value)}>{Object.entries(CYCLE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
               <Field label="群組" hint="同來源會歸在一起,如:聯榮大廈、前山、日本"><input className="inp" placeholder="聯榮大廈" value={form.group} onChange={(e) => setF("group", e.target.value)} /></Field>
             </div>
+            <Field label="存放地點 / 帳戶" hint="錢實際收到、存放的地方(可跟合約幣別不同),例如:中國微信、香港銀行"><input className="inp" list="acctSuggest" placeholder="中國微信" value={form.account} onChange={(e) => setF("account", e.target.value)} /><datalist id="acctSuggest"><option value="中國微信" /><option value="中國銀行" /><option value="香港銀行" /><option value="日本銀行" /><option value="澳門銀行" /><option value="現金" /></datalist></Field>
             <div className="fgrid2">
               <Field label="開始日期" hint="幾時開始有這筆收入(留空=一直都有)"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
               <Field label="結束日期" hint="幾時結束(留空=持續中)"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
