@@ -282,6 +282,7 @@ export default function App() {
   const [curM, setCurM] = useState(now.getMonth() + 1);
   const [fcYear, setFcYear] = useState(now.getFullYear());
   const [mvMode, setMvMode] = useState("ex");
+  const [ooMonth, setOoMonth] = useState("all");
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -781,8 +782,7 @@ export default function App() {
       {tab === "monthly" && (() => {
         const dueRecur = lines.ex.filter((l) => isDue(l.freq, l.anchor, curM));
         const dueInc = lines.inc.filter((l) => isDue(l.freq, l.anchor, curM) && activeRange(l.start, l.end, curY, curM));
-        const monthOneoffs = (data.oneoffs || []).filter((o) => { const p = (o.date || "").split("-").map(Number); return p[0] === curY && p[1] === curM; }).map((o) => ({ key: `oneoff:${o.id}`, cat: "臨時", name: o.name, currency: o.currency, amount: numify(o.amount), date: o.date, oneoff: true }));
-        const dueEx = [...dueRecur, ...monthOneoffs];
+        const dueEx = dueRecur;
         const expDue = dueEx.reduce((s, l) => s + tb(l.amount, l.currency), 0);
         const expPaid = dueEx.reduce((s, l) => s + (monthRec[l.key] ? paidBase(monthRec[l.key], l.currency) : 0), 0);
         const incDue = dueInc.reduce((s, l) => s + tb(l.amount, l.currency), 0);
@@ -839,13 +839,6 @@ export default function App() {
               );
             })}
 
-            {monthOneoffs.length > 0 && (
-              <div className="card" style={{ padding: "16px 20px", marginBottom: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: CAT_COLOR["臨時"] }} /><div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600 }}>臨時 / 一次性</div></div>
-                {monthOneoffs.map((l) => renderRow(l, "確認已付"))}
-              </div>
-            )}
-
             {dueInc.length > 0 && (
               <div className="card" style={{ padding: "16px 20px", marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -868,17 +861,17 @@ export default function App() {
         const mIncAct = Array(12).fill(0), mExpPlan = Array(12).fill(0), mIncPlan = Array(12).fill(0);
         for (let mm = 1; mm <= 12; mm++) {
           const rec = data.payments[ymOf(fcYear, mm)] || {};
-          Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat === "收入") mIncAct[mm - 1] += b; else monthlySpend[mm - 1] += b; });
+          Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat === "收入") mIncAct[mm - 1] += b; else if (l.cat !== "臨時") monthlySpend[mm - 1] += b; });
           lines.ex.forEach((l) => { if (isDue(l.freq, l.anchor, mm)) mExpPlan[mm - 1] += tb(l.amount, l.currency); });
-          (data.oneoffs || []).forEach((o) => { const p = (o.date || "").split("-").map(Number); if (p[0] === fcYear && p[1] === mm) mExpPlan[mm - 1] += tb(o.amount, o.currency); });
           lines.inc.forEach((l) => { if (isDue(l.freq, l.anchor, mm) && activeRange(l.start, l.end, fcYear, mm)) mIncPlan[mm - 1] += tb(l.amount, l.currency); });
         }
+        const oneoffYear = (data.oneoffs || []).reduce((s, o) => { const p = (o.date || "").split("-").map(Number); return p[0] === fcYear ? s + tb(o.amount, o.currency) : s; }, 0);
         const fcDefault = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
         lines.ex.forEach((l) => { fcDefault[l.cat] += tb(perMonth(l.amount, l.freq), l.currency) * 12; });
         lines.inc.forEach((l) => { let am = 0; for (let mm = 1; mm <= 12; mm++) if (activeRange(l.start, l.end, fcYear, mm)) am++; fcDefault["收入"] += tb(perMonth(l.amount, l.freq), l.currency) * am; });
         const fcStore = data.forecasts[fcYear] || {};
         const fcVal = (c) => (fcStore[c] != null ? fcStore[c] : Math.round(fcDefault[c]));
-        const ANN_CATS = [...EXP_CATS, "臨時"];
+        const ANN_CATS = EXP_CATS;
         const expFc = ANN_CATS.reduce((s, c) => s + fcVal(c), 0);
         const expAct = ANN_CATS.reduce((s, c) => s + actual[c], 0);
         const applyDefaults = () => persist({ ...data, forecasts: { ...data.forecasts, [fcYear]: { 物業: Math.round(fcDefault.物業), 保險: Math.round(fcDefault.保險), 負債: Math.round(fcDefault.負債), 固定費: Math.round(fcDefault.固定費), 生活費: Math.round(fcDefault.生活費), 臨時: fcStore.臨時 != null ? fcStore.臨時 : 0, 收入: Math.round(fcDefault.收入) } } });
@@ -914,12 +907,19 @@ export default function App() {
                   <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.muted, textAlign: "right" }}>差異</span>
                 </div>
                 {EXP_CATS.map((c) => <RowFc key={c} c={c} />)}
-                <RowFc c="臨時" />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, alignItems: "center", paddingTop: 11 }}>
                   <span style={{ fontFamily: T.serif, fontSize: 15, fontWeight: 600 }}>支出合計</span>
                   <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.inkSoft, fontVariantNumeric: "tabular-nums" }}>{fmt(expFc)}</span>
                   <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(expAct)}</span>
                   <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: expAct === 0 ? T.muted : expAct - expFc > 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{expAct === 0 ? "—" : (expAct - expFc > 0 ? "+" : "") + fmt(expAct - expFc)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${T.line}` }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>臨時支出(另計,不列入預算)</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: oneoffYear > 0 ? "#7C6F64" : T.muted, fontVariantNumeric: "tabular-nums" }}>實際 {fmt(oneoffYear)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                  <span style={{ fontFamily: T.serif, fontSize: 14, fontWeight: 600 }}>實際總支出(固定 + 臨時)</span>
+                  <span style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(expAct + oneoffYear)}</span>
                 </div>
               </div>
             </div>
@@ -1200,19 +1200,30 @@ export default function App() {
           <SectionHeader title="臨時 / 一次性支出" count={data.oneoffs.length} onAdd={() => openAdd("oneoff")} addLabel="新增" />
           <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>機票、家電、律師費等偶發的大額支出。每筆會計入它日期所在的「每月對帳」與「年度預測」的實際支出,但不會攤進每月平均。</div>
           {data.oneoffs.length === 0 ? <EmptyState icon={Receipt} title="還沒有臨時支出" desc="記一筆某天發生的一次性費用,指定日期與金額即可。" cta="新增臨時支出" onCta={() => openAdd("oneoff")} /> : (() => {
-            const sorted = [...data.oneoffs].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+            const allSorted = [...data.oneoffs].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+            const ooMonths = [...new Set(allSorted.filter((o) => o.date).map((o) => o.date.slice(0, 7)))].sort().reverse();
+            const ymLabel = (ym) => { const [y, m] = ym.split("-"); return `${y}年${parseInt(m, 10)}月`; };
+            const sorted = ooMonth === "all" ? allSorted : allSorted.filter((o) => (o.date || "").slice(0, 7) === ooMonth);
             const total = sorted.reduce((s, o) => s + tb(o.amount, o.currency), 0);
             const byCat = {}; sorted.forEach((o) => { const k = o.category || "未分類"; byCat[k] = (byCat[k] || 0) + tb(o.amount, o.currency); });
             const cats = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
             return (
               <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.inkSoft }}>看哪個月</span>
+                  <select className="sel" value={ooMonth} onChange={(e) => setOoMonth(e.target.value)} style={{ width: "auto", minWidth: 140 }}>
+                    <option value="all">全部</option>
+                    {ooMonths.map((ym) => <option key={ym} value={ym}>{ymLabel(ym)}</option>)}
+                  </select>
+                </div>
                 <div className="card-flat" style={{ padding: "14px 18px", marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>全部臨時支出合計</span>
+                    <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{ooMonth === "all" ? "全部臨時支出合計" : `${ymLabel(ooMonth)} 合計`} · {sorted.length} 筆</span>
                     <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>≈ {bMoney(total)}</span>
                   </div>
                   {cats.length > 0 && <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>{cats.map((c) => <Badge key={c} color="#7C6F64" bg="#EDE7DC">{c} · {bMoney(byCat[c])}</Badge>)}</div>}
                 </div>
+                {sorted.length === 0 ? <div className="card-flat" style={{ padding: "24px", textAlign: "center", fontFamily: T.sans, fontSize: 13, color: T.muted, borderStyle: "dashed" }}>這個月沒有臨時支出。</div> : (
                 <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
                   {sorted.map((o) => (
                     <div key={o.id} className="card rise" style={{ padding: 18 }}>
@@ -1226,6 +1237,7 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             );
           })()}
