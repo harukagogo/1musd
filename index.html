@@ -624,8 +624,8 @@ export default function App() {
 
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", marginBottom: 18 }}>
               <Stat label="每月平均支出" value={bMoney(M.expense)} accent={T.forest} sub={`物業 ${fmt(M.catEx.物業)} · 保險 ${fmt(M.catEx.保險)} · 負債 ${fmt(M.catEx.負債)}`} />
-              <Stat label="每月收入" value={bMoney(M.income)} accent={T.pos} sub={`${data.incomes.length} 個來源`} />
-              <Stat label="每月結餘" value={(M.balance >= 0 ? "+" : "−") + fmt(Math.abs(M.balance))} accent={M.balance >= 0 ? T.pos : T.neg} sub={M.balance >= 0 ? "收入足以支應支出" : "支出超過收入,需從其他來源填補"} />
+              <Stat label="每月平均收入" value={bMoney(M.income)} accent={T.pos} sub={`${data.incomes.length} 個來源`} />
+              <Stat label="每月平均結餘" value={(M.balance >= 0 ? "+" : "−") + fmt(Math.abs(M.balance))} accent={M.balance >= 0 ? T.pos : T.neg} sub={M.balance >= 0 ? "收入足以支應支出" : "支出超過收入,需從其他來源填補"} />
               <Stat label="剩餘總負債" value={bMoney(M.debtTotal)} accent={T.neg} sub={`${data.properties.length} 物業 + ${data.debts.length} 負債`} />
               <Stat label="總資產" value={bMoney(totalAssets)} accent={T.forest} sub={`${(data.accounts || []).length} 個帳戶 · 含股票`} />
               <Stat label="淨資產" value={`${totalAssets - M.debtTotal < 0 ? "−" : ""}${bMoney(Math.abs(totalAssets - M.debtTotal))}`} accent={totalAssets - M.debtTotal >= 0 ? T.pos : T.neg} sub="資產 − 總負債" />
@@ -633,8 +633,8 @@ export default function App() {
 
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))" }}>
               <div className="card" style={{ padding: 20 }}>
-                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 14 }}>每月支出分類</div>
-                <Donut slices={catSlices} total={M.expense} label="每月支出" baseLabel={base} />
+                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 14 }}>每月平均支出分類</div>
+                <Donut slices={catSlices} total={M.expense} label="每月平均" baseLabel={base} />
                 <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
                   {catSlices.map((s, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -658,10 +658,10 @@ export default function App() {
                     </div>
                   );
                   return (<>
-                    <Bar label="每月收入" val={M.income} color={T.pos} />
-                    <Bar label="每月支出" val={M.expense} color={T.forest} />
+                    <Bar label="每月平均收入" val={M.income} color={T.pos} />
+                    <Bar label="每月平均支出" val={M.expense} color={T.forest} />
                     <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.inkSoft }}>每月結餘</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600, color: T.inkSoft }}>每月平均結餘</span>
                       <span style={{ fontFamily: T.serif, fontSize: 23, fontWeight: 600, color: M.balance >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(M.balance >= 0 ? "+" : "−") + fmt(Math.abs(M.balance))}</span>
                     </div>
                   </>);
@@ -858,13 +858,13 @@ export default function App() {
         (data.oneoffs || []).forEach((o) => { lineMap[`oneoff:${o.id}`] = { key: `oneoff:${o.id}`, cat: "臨時", name: o.name, currency: o.currency }; });
         const actual = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
         const monthlySpend = Array(12).fill(0);
-        const mIncAct = Array(12).fill(0), mExpPlan = Array(12).fill(0), mIncPlan = Array(12).fill(0);
+        const mIncAct = Array(12).fill(0), mExpPlan = Array(12).fill(0), mIncPlan = Array(12).fill(0), mOneoff = Array(12).fill(0);
         for (let mm = 1; mm <= 12; mm++) {
           const rec = data.payments[ymOf(fcYear, mm)] || {};
           Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat === "收入") mIncAct[mm - 1] += b; else if (l.cat !== "臨時") monthlySpend[mm - 1] += b; });
           lines.ex.forEach((l) => { if (isDue(l.freq, l.anchor, mm)) mExpPlan[mm - 1] += tb(l.amount, l.currency); });
           lines.inc.forEach((l) => { if (isDue(l.freq, l.anchor, mm) && activeRange(l.start, l.end, fcYear, mm)) mIncPlan[mm - 1] += tb(l.amount, l.currency); });
-          (data.oneoffs || []).forEach((o) => { const p = (o.date || "").split("-").map(Number); if (p[0] === fcYear && p[1] === mm) monthlySpend[mm - 1] += tb(o.amount, o.currency); });
+          (data.oneoffs || []).forEach((o) => { const p = (o.date || "").split("-").map(Number); if (p[0] === fcYear && p[1] === mm) { monthlySpend[mm - 1] += tb(o.amount, o.currency); mOneoff[mm - 1] += tb(o.amount, o.currency); } });
         }
         const oneoffYear = (data.oneoffs || []).reduce((s, o) => { const p = (o.date || "").split("-").map(Number); return p[0] === fcYear ? s + tb(o.amount, o.currency) : s; }, 0);
         const fcDefault = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
@@ -922,6 +922,48 @@ export default function App() {
                 </div>
                 <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginTop: 10 }}>「預測」只算固定項目(臨時不列入預算);「實際」含臨時支出 {fmt(oneoffYear)},是你今年真正花的全部。</div>
               </div>
+            </div>
+
+            <div className="card" style={{ padding: 20, marginBottom: 16, overflowX: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><Wallet size={17} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>全年現金流預估</div></div>
+              <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, marginBottom: 14 }}>事先推算(不是已付累積):每月排定要收 vs 要付(含臨時),讓你提早知道哪個月會不夠、要先準備多少錢。</div>
+              {(() => {
+                const cashIn = mIncPlan;
+                const cashOut = mExpPlan.map((v, i) => v + mOneoff[i]);
+                const net = cashIn.map((v, i) => v - cashOut[i]);
+                let run = 0; const cum = net.map((v) => (run += v));
+                const totalIn = cashIn.reduce((s, v) => s + v, 0), totalOut = cashOut.reduce((s, v) => s + v, 0), yearNet = totalIn - totalOut;
+                const minCum = Math.min(0, ...cum);
+                const worstMonth = cum.indexOf(Math.min(...cum)) + 1;
+                return (
+                  <div style={{ minWidth: 460 }}>
+                    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", marginBottom: 16 }}>
+                      <div style={{ background: T.surfaceAlt, borderRadius: 12, padding: "12px 14px" }}><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>全年預計結餘</div><div style={{ fontFamily: T.serif, fontSize: 19, fontWeight: 600, color: yearNet >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(yearNet >= 0 ? "+" : "−") + fmt(Math.abs(yearNet))}</div><div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>收 {fmt(totalIn)} − 付 {fmt(totalOut)}</div></div>
+                      <div style={{ background: minCum < 0 ? "#FBEBE6" : T.surfaceAlt, borderRadius: 12, padding: "12px 14px" }}><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>最少要準備的現金</div><div style={{ fontFamily: T.serif, fontSize: 19, fontWeight: 600, color: minCum < 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{minCum < 0 ? bMoney(Math.abs(minCum)) : bMoney(0)}</div><div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>{minCum < 0 ? `到 ${worstMonth} 月累計最低` : "每月累計都不會變負"}</div></div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 1fr 1fr", gap: 8, paddingBottom: 8, borderBottom: `1.5px solid ${T.line}` }}>
+                      <span style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 700, color: T.muted }}>月</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 700, color: T.muted, textAlign: "right" }}>預計收</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 700, color: T.muted, textAlign: "right" }}>預計付</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 700, color: T.muted, textAlign: "right" }}>當月淨</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 700, color: T.muted, textAlign: "right" }}>累計</span>
+                    </div>
+                    {Array.from({ length: 12 }, (_, i) => i).map((i) => {
+                      const here = i + 1 === curM && fcYear === curY;
+                      return (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 1fr 1fr", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.line}`, background: here ? T.brassSoft + "55" : "transparent" }}>
+                          <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: here ? 700 : 600, color: here ? T.brass : T.ink }}>{i + 1}月</span>
+                          <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 12.5, color: T.inkSoft, fontVariantNumeric: "tabular-nums" }}>{fmt(cashIn[i])}</span>
+                          <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 12.5, color: T.inkSoft, fontVariantNumeric: "tabular-nums" }}>{fmt(cashOut[i])}</span>
+                          <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: net[i] < 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{(net[i] >= 0 ? "+" : "−") + fmt(Math.abs(net[i]))}</span>
+                          <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: cum[i] < 0 ? T.neg : T.muted, fontVariantNumeric: "tabular-nums" }}>{(cum[i] >= 0 ? "" : "−") + fmt(Math.abs(cum[i]))}</span>
+                        </div>
+                      );
+                    })}
+                    <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginTop: 10 }}>紅色「當月淨」= 那個月排定要付的比收的多,要從別處補。「累計」= 假設年初從 0 開始一路加總;最低點(紅色)就是你最少要先準備好的現金。</div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))" }}>
