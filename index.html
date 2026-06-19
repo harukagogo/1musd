@@ -281,6 +281,7 @@ export default function App() {
   const [curY, setCurY] = useState(now.getFullYear());
   const [curM, setCurM] = useState(now.getMonth() + 1);
   const [fcYear, setFcYear] = useState(now.getFullYear());
+  const [mvMode, setMvMode] = useState("ex");
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -864,9 +865,13 @@ export default function App() {
         (data.oneoffs || []).forEach((o) => { lineMap[`oneoff:${o.id}`] = { key: `oneoff:${o.id}`, cat: "臨時", name: o.name, currency: o.currency }; });
         const actual = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
         const monthlySpend = Array(12).fill(0);
+        const mIncAct = Array(12).fill(0), mExpPlan = Array(12).fill(0), mIncPlan = Array(12).fill(0);
         for (let mm = 1; mm <= 12; mm++) {
           const rec = data.payments[ymOf(fcYear, mm)] || {};
-          Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat !== "收入") monthlySpend[mm - 1] += b; });
+          Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat === "收入") mIncAct[mm - 1] += b; else monthlySpend[mm - 1] += b; });
+          lines.ex.forEach((l) => { if (isDue(l.freq, l.anchor, mm)) mExpPlan[mm - 1] += tb(l.amount, l.currency); });
+          (data.oneoffs || []).forEach((o) => { const p = (o.date || "").split("-").map(Number); if (p[0] === fcYear && p[1] === mm) mExpPlan[mm - 1] += tb(o.amount, o.currency); });
+          lines.inc.forEach((l) => { if (isDue(l.freq, l.anchor, mm) && activeRange(l.start, l.end, fcYear, mm)) mIncPlan[mm - 1] += tb(l.amount, l.currency); });
         }
         const fcDefault = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
         lines.ex.forEach((l) => { fcDefault[l.cat] += tb(perMonth(l.amount, l.freq), l.currency) * 12; });
@@ -959,16 +964,54 @@ export default function App() {
               </div>
 
               <div className="card" style={{ padding: 20, gridColumn: "1 / -1" }}>
-                <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 16 }}>{fcYear} 年各月實際支出</div>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: "min(2vw,10px)", height: 130 }}>
-                  {monthlySpend.map((v, i) => (
-                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-                      <div style={{ fontFamily: T.sans, fontSize: 9, color: T.muted, fontVariantNumeric: "tabular-nums" }}>{v > 0 ? fmt(v / 1000) + "k" : ""}</div>
-                      <div style={{ width: "100%", maxWidth: 26, height: `${(v / maxSpend) * 88}px`, minHeight: v > 0 ? 3 : 0, background: i + 1 === curM && fcYear === curY ? T.brass : T.forest, borderRadius: "5px 5px 0 0", transition: "height .4s ease" }} />
-                      <div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>{i + 1}</div>
-                    </div>
-                  ))}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 6 }}>
+                  <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>{fcYear} 年 · 每月 預測 vs 實際</div>
+                  <div style={{ display: "flex", gap: 4, background: T.surfaceAlt, padding: 3, borderRadius: 10 }}>
+                    {[["ex", "支出"], ["inc", "收入"]].map(([k, lab]) => (
+                      <button key={k} onClick={() => setMvMode(k)} style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer", background: mvMode === k ? T.surface : "transparent", color: mvMode === k ? T.ink : T.muted, boxShadow: mvMode === k ? "0 1px 3px rgba(34,31,24,.12)" : "none" }}>{lab}</button>
+                    ))}
+                  </div>
                 </div>
+                {(() => {
+                  const plan = mvMode === "ex" ? mExpPlan : mIncPlan;
+                  const act = mvMode === "ex" ? monthlySpend : mIncAct;
+                  const actColor = mvMode === "ex" ? T.forest : T.pos;
+                  const max = Math.max(...plan, ...act, 1);
+                  const sumPlan = plan.reduce((s, v) => s + v, 0), sumAct = act.reduce((s, v) => s + v, 0);
+                  return (
+                    <div>
+                      <div style={{ display: "flex", gap: 16, marginBottom: 8, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: T.brass }} />預定</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: actColor }} />實際</span>
+                      </div>
+                      {Array.from({ length: 12 }, (_, i) => i).map((i) => {
+                        const p = plan[i], a = act[i], here = i + 1 === curM && fcYear === curY;
+                        return (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${T.line}` }}>
+                            <div style={{ width: 30, fontFamily: T.sans, fontSize: 12, fontWeight: here ? 700 : 500, color: here ? T.brass : T.muted, flexShrink: 0 }}>{i + 1}月</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ height: 7, background: T.surfaceAlt, borderRadius: 4, overflow: "hidden" }}><div style={{ height: "100%", width: `${(p / max) * 100}%`, background: T.brass, borderRadius: 4 }} /></div>
+                              <div style={{ height: 7, background: T.surfaceAlt, borderRadius: 4, overflow: "hidden", marginTop: 3 }}><div style={{ height: "100%", width: `${(a / max) * 100}%`, background: actColor, borderRadius: 4, transition: "width .4s ease" }} /></div>
+                            </div>
+                            <div style={{ width: 96, textAlign: "right", flexShrink: 0 }}>
+                              <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: a > 0 ? actColor : T.muted, fontVariantNumeric: "tabular-nums" }}>實 {fmt(a)}</div>
+                              <div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted, fontVariantNumeric: "tabular-nums" }}>預 {fmt(p)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 10 }}>
+                        <div style={{ width: 30, fontFamily: T.serif, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>全年</div>
+                        <div style={{ flex: 1 }} />
+                        <div style={{ width: 96, textAlign: "right", flexShrink: 0 }}>
+                          <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 700, color: actColor, fontVariantNumeric: "tabular-nums" }}>實 {fmt(sumAct)}</div>
+                          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, fontVariantNumeric: "tabular-nums" }}>預 {fmt(sumPlan)}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginTop: 10 }}>「預定」= 該月排定要{mvMode === "ex" ? "付" : "收"}的金額(年繳項目只算在它該繳的月份);「實際」= 你在「每月對帳」確認已{mvMode === "ex" ? "付" : "收"}的金額。金額以 {base} 計。</div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
