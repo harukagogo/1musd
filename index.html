@@ -864,6 +864,7 @@ export default function App() {
           Object.entries(rec).forEach(([k, v]) => { const l = lineMap[k]; if (!l) return; const b = paidBase(v, l.currency); actual[l.cat] += b; if (l.cat === "收入") mIncAct[mm - 1] += b; else if (l.cat !== "臨時") monthlySpend[mm - 1] += b; });
           lines.ex.forEach((l) => { if (isDue(l.freq, l.anchor, mm)) mExpPlan[mm - 1] += tb(l.amount, l.currency); });
           lines.inc.forEach((l) => { if (isDue(l.freq, l.anchor, mm) && activeRange(l.start, l.end, fcYear, mm)) mIncPlan[mm - 1] += tb(l.amount, l.currency); });
+          (data.oneoffs || []).forEach((o) => { const p = (o.date || "").split("-").map(Number); if (p[0] === fcYear && p[1] === mm) monthlySpend[mm - 1] += tb(o.amount, o.currency); });
         }
         const oneoffYear = (data.oneoffs || []).reduce((s, o) => { const p = (o.date || "").split("-").map(Number); return p[0] === fcYear ? s + tb(o.amount, o.currency) : s; }, 0);
         const fcDefault = { 物業: 0, 保險: 0, 負債: 0, 固定費: 0, 生活費: 0, 臨時: 0, 收入: 0 };
@@ -907,20 +908,19 @@ export default function App() {
                   <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.muted, textAlign: "right" }}>差異</span>
                 </div>
                 {EXP_CATS.map((c) => <RowFc key={c} c={c} />)}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#7C6F64" }} /><span style={{ fontFamily: T.sans, fontSize: 13.5, fontWeight: 600 }}>臨時</span></div>
+                  <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 11, color: T.muted }}>不列入預算</div>
+                  <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 13.5, fontWeight: 700, color: oneoffYear > 0 ? "#7C6F64" : T.muted, fontVariantNumeric: "tabular-nums" }}>{fmt(oneoffYear)}</div>
+                  <div style={{ textAlign: "right", fontFamily: T.sans, fontSize: 13, color: T.muted }}>—</div>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 1fr", gap: 8, alignItems: "center", paddingTop: 11 }}>
                   <span style={{ fontFamily: T.serif, fontSize: 15, fontWeight: 600 }}>支出合計</span>
                   <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.inkSoft, fontVariantNumeric: "tabular-nums" }}>{fmt(expFc)}</span>
-                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(expAct)}</span>
-                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: expAct === 0 ? T.muted : expAct - expFc > 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{expAct === 0 ? "—" : (expAct - expFc > 0 ? "+" : "") + fmt(expAct - expFc)}</span>
+                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(expAct + oneoffYear)}</span>
+                  <span style={{ textAlign: "right", fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: (expAct + oneoffYear) === 0 ? T.muted : (expAct + oneoffYear) - expFc > 0 ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{(expAct + oneoffYear) === 0 ? "—" : ((expAct + oneoffYear) - expFc > 0 ? "+" : "") + fmt((expAct + oneoffYear) - expFc)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${T.line}` }}>
-                  <span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>臨時支出(另計,不列入預算)</span>
-                  <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: oneoffYear > 0 ? "#7C6F64" : T.muted, fontVariantNumeric: "tabular-nums" }}>實際 {fmt(oneoffYear)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                  <span style={{ fontFamily: T.serif, fontSize: 14, fontWeight: 600 }}>實際總支出(固定 + 臨時)</span>
-                  <span style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(expAct + oneoffYear)}</span>
-                </div>
+                <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginTop: 10 }}>「預測」只算固定項目(臨時不列入預算);「實際」含臨時支出 {fmt(oneoffYear)},是你今年真正花的全部。</div>
               </div>
             </div>
 
@@ -928,19 +928,21 @@ export default function App() {
               <div className="card" style={{ padding: 20 }}>
                 <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, marginBottom: 16 }}>預測 vs 實際 · 支出</div>
                 {(() => {
-                  const max = Math.max(expFc, expAct, 1);
-                  const Bar = ({ label, val, color }) => (
+                  const expActAll = expAct + oneoffYear;
+                  const max = Math.max(expFc, expActAll, 1);
+                  const Bar = ({ label, val, color, sub }) => (
                     <div style={{ marginBottom: 14 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{label}</span><span style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{bMoney(val)}</span></div>
                       <div style={{ height: 12, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${(val / max) * 100}%`, background: color, borderRadius: 999, transition: "width .5s ease" }} /></div>
+                      {sub && <div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted, marginTop: 4 }}>{sub}</div>}
                     </div>
                   );
                   return (<>
-                    <Bar label="預測支出" val={expFc} color={T.brass} />
-                    <Bar label="實際支出" val={expAct} color={T.forest} />
+                    <Bar label="預測支出(固定)" val={expFc} color={T.brass} />
+                    <Bar label="實際支出(含臨時)" val={expActAll} color={T.forest} sub={oneoffYear > 0 ? `含臨時 ${fmt(oneoffYear)}` : null} />
                     <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{expAct > expFc ? "超出預算" : "結餘 / 尚未用完"}</span>
-                      <span style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: expAct > expFc ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{(expAct - expFc > 0 ? "+" : "−") + fmt(Math.abs(expAct - expFc))}</span>
+                      <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.inkSoft }}>{expActAll > expFc ? "超出預算" : "結餘 / 尚未用完"}</span>
+                      <span style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: expActAll > expFc ? T.neg : T.pos, fontVariantNumeric: "tabular-nums" }}>{(expActAll - expFc > 0 ? "+" : "−") + fmt(Math.abs(expActAll - expFc))}</span>
                     </div>
                   </>);
                 })()}
