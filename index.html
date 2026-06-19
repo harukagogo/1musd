@@ -436,13 +436,33 @@ export default function App() {
     if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
     if (t === "income" || t === "subscription" || t === "living" || t === "oneoff") rec.amount = numify(form.amount);
     if (t === "account") rec.balance = numify(form.balance);
-    if (t === "transfer") { rec.amount = numify(form.amount); if (!rec.name) rec.name = `${form.from} → ${form.to}`; }
+    if (t === "transfer") {
+      rec.amount = numify(form.amount);
+      if (!rec.name) rec.name = `${form.from} → ${form.to}`;
+      const fromA = (data.accounts || []).find((a) => a.name === rec.from);
+      const toA = (data.accounts || []).find((a) => a.name === rec.to);
+      rec.fromDelta = fromA ? round2(conv(rec.amount, rec.currency, fromA.currency)) : 0;
+      rec.toDelta = toA ? round2(conv(rec.amount, rec.currency, toA.currency)) : 0;
+    }
     const list = modal.id ? data[coll].map((x) => (x.id === modal.id ? { ...rec, id: modal.id } : x)) : [...data[coll], { ...rec, id: uid() }];
     let nextData = { ...data, [coll]: list };
     if (t === "account") nextData.assetHistory = snapshotAssets(list, data);
+    if (t === "transfer") {
+      let accts = data.accounts || [];
+      if (modal.id) { const old = (data.transfers || []).find((x) => x.id === modal.id); if (old) accts = applyDeltas(accts, old, -1); }
+      accts = applyDeltas(accts, rec, +1);
+      nextData.accounts = accts;
+    }
     persist(nextData);
     close();
   };
+  const conv = (amt, from, to) => numify(amt) * (rates[from] || 1) / (rates[to] || 1);
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const applyDeltas = (accounts, tr, sign) => (accounts || []).map((a) => {
+    if (a.name === tr.from) return { ...a, balance: round2(numify(a.balance) - sign * (tr.fromDelta || 0)) };
+    if (a.name === tr.to) return { ...a, balance: round2(numify(a.balance) + sign * (tr.toDelta || 0)) };
+    return a;
+  });
   const snapshotAssets = (accounts, prevData) => {
     const today = todayISO();
     const total = (accounts || []).reduce((s, a) => s + numify(a.balance) * (rates[a.currency] || 1) / (rates[base] || 1), 0);
@@ -452,7 +472,7 @@ export default function App() {
     return hist;
   };
   const markAssetsToday = () => persist({ ...data, assetHistory: snapshotAssets(data.accounts, data) });
-  const remove = (t, id) => { if (window.confirm("確定要刪除這筆資料嗎?")) { const list = data[collOf[t]].filter((x) => x.id !== id); const nd = { ...data, [collOf[t]]: list }; if (t === "account") nd.assetHistory = snapshotAssets(list, data); persist(nd); } };
+  const remove = (t, id) => { if (window.confirm("確定要刪除這筆資料嗎?")) { if (t === "transfer") { const tr = (data.transfers || []).find((x) => x.id === id); persist({ ...data, transfers: data.transfers.filter((x) => x.id !== id), accounts: tr ? applyDeltas(data.accounts, tr, -1) : data.accounts }); return; } const list = data[collOf[t]].filter((x) => x.id !== id); const nd = { ...data, [collOf[t]]: list }; if (t === "account") nd.assetHistory = snapshotAssets(list, data); persist(nd); } };
 
   const setRate = (c, v) => persist({ ...data, settings: { ...data.settings, rates: { ...data.settings.rates, [c]: parseFloat(v) || 0 } } });
   const setBase = (v) => persist({ ...data, settings: { ...data.settings, base: v } });
@@ -1411,7 +1431,7 @@ export default function App() {
               <Field label="日期"><input className="inp" type="date" value={form.date} onChange={(e) => setF("date", e.target.value)} /></Field>
               <Field label="備註" hint="例如:股票提現、轉去澳門"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
             </div>
-            <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>轉賬只是把錢從一個帳戶搬到另一個,不會被當成收入或支出。記得之後在「資產」更新兩邊帳戶的餘額。</div>
+            <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>轉賬只是把錢從一個帳戶搬到另一個,不會被當成收入或支出。系統會自動把兩邊帳戶的餘額加減好(跨幣別用目前匯率換算);股票市值有變動時,直接編輯該帳戶的餘額即可。</div>
           </>)}
         </Modal>
       )}
