@@ -126,7 +126,7 @@ function buildLines(data) {
 
 /* ===================== Seed (from 重要.xlsx) ===================== */
 const KEY = "finance-data-v2";
-const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], accounts: [], transfers: [], payments: {}, forecasts: {} };
+const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], accounts: [], transfers: [], assetHistory: [], payments: {}, forecasts: {} };
 const SEED = EMPTY; // personal data removed for public hosting; load via import after sign-in
 const hasStore = typeof window !== "undefined" && window.storage;
 
@@ -158,6 +158,44 @@ function EmptyState({ icon: Icon, title, desc, cta, onCta }) {
       <div style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: T.ink }}>{title}</div>
       <div style={{ fontFamily: T.sans, fontSize: 13.5, color: T.inkSoft, marginTop: 6, maxWidth: 360, marginInline: "auto" }}>{desc}</div>
       {cta && <button className="btn" style={{ marginTop: 18 }} onClick={onCta}><Plus size={16} strokeWidth={2.4} />{cta}</button>}
+    </div>
+  );
+}
+function AssetTrend({ history, base, latest, onMark }) {
+  const pts = [...(history || [])].sort((a, b) => a.date.localeCompare(b.date));
+  return (
+    <div className="card" style={{ padding: 20, gridColumn: "1 / -1", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><TrendingUp size={17} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600 }}>資產走勢</div></div>
+        <button className="btn-ghost" style={{ padding: "6px 11px", fontSize: 12.5 }} onClick={onMark}>記錄今天</button>
+      </div>
+      {pts.length < 2 ? (
+        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted, marginTop: 12 }}>{pts.length === 0 ? "還沒有紀錄。改一次帳戶餘額,或按「記錄今天」,就會開始畫走勢線。" : `已記錄 1 筆(${pts[0].date} · ${base} ${fmt(pts[0].total)})。改天再記一次就會連成走勢線。`}</div>
+      ) : (() => {
+        const vals = pts.map((p) => p.total);
+        let min = Math.min(...vals), max = Math.max(...vals);
+        if (min === max) { const pad = Math.abs(min) * 0.05 || 1; min -= pad; max += pad; }
+        const X = (i) => (i / (pts.length - 1)) * 100;
+        const Y = (v) => (1 - (v - min) / (max - min)) * 100;
+        const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(2)},${Y(p.total).toFixed(2)}`).join(" ");
+        const area = `${line} L100,100 L0,100 Z`;
+        return (
+          <div>
+            <div style={{ position: "relative", height: 190, marginTop: 14 }}>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+                <path d={area} fill={T.forestSoft} opacity={0.5} />
+                <path d={line} fill="none" stroke={T.forest} strokeWidth={2.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+              {pts.map((p, i) => <div key={p.date} title={`${p.date} · ${base} ${fmt(p.total)}`} style={{ position: "absolute", left: `${X(i)}%`, top: `${Y(p.total)}%`, width: 8, height: 8, borderRadius: "50%", background: T.surface, border: `2px solid ${T.forest}`, transform: "translate(-50%,-50%)" }} />)}
+              <div style={{ position: "absolute", top: 0, left: 2, fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>{base} {fmt(max)}</div>
+              <div style={{ position: "absolute", bottom: 0, left: 2, fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>{base} {fmt(min)}</div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: T.sans, fontSize: 11, color: T.muted }}>
+              <span>{pts[0].date}</span><span>最新 {base} {fmt(latest)} · {pts[pts.length - 1].date}</span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -258,7 +296,7 @@ export default function App() {
         const snap = await getDoc(doc(fbDb, "users", user.uid));
         if (snap.exists() && snap.data().json) {
           const o = JSON.parse(snap.data().json);
-          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], payments: o.payments || {}, forecasts: o.forecasts || {} });
+          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], payments: o.payments || {}, forecasts: o.forecasts || {} });
         } else { setData(EMPTY); }
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -400,10 +438,21 @@ export default function App() {
     if (t === "account") rec.balance = numify(form.balance);
     if (t === "transfer") { rec.amount = numify(form.amount); if (!rec.name) rec.name = `${form.from} → ${form.to}`; }
     const list = modal.id ? data[coll].map((x) => (x.id === modal.id ? { ...rec, id: modal.id } : x)) : [...data[coll], { ...rec, id: uid() }];
-    persist({ ...data, [coll]: list });
+    let nextData = { ...data, [coll]: list };
+    if (t === "account") nextData.assetHistory = snapshotAssets(list, data);
+    persist(nextData);
     close();
   };
-  const remove = (t, id) => { if (window.confirm("確定要刪除這筆資料嗎?")) persist({ ...data, [collOf[t]]: data[collOf[t]].filter((x) => x.id !== id) }); };
+  const snapshotAssets = (accounts, prevData) => {
+    const today = todayISO();
+    const total = (accounts || []).reduce((s, a) => s + numify(a.balance) * (rates[a.currency] || 1) / (rates[base] || 1), 0);
+    const hist = (prevData.assetHistory || []).filter((h) => h.date !== today);
+    hist.push({ date: today, total });
+    hist.sort((a, b) => a.date.localeCompare(b.date));
+    return hist;
+  };
+  const markAssetsToday = () => persist({ ...data, assetHistory: snapshotAssets(data.accounts, data) });
+  const remove = (t, id) => { if (window.confirm("確定要刪除這筆資料嗎?")) { const list = data[collOf[t]].filter((x) => x.id !== id); const nd = { ...data, [collOf[t]]: list }; if (t === "account") nd.assetHistory = snapshotAssets(list, data); persist(nd); } };
 
   const setRate = (c, v) => persist({ ...data, settings: { ...data.settings, rates: { ...data.settings.rates, [c]: parseFloat(v) || 0 } } });
   const setBase = (v) => persist({ ...data, settings: { ...data.settings, base: v } });
@@ -429,7 +478,7 @@ export default function App() {
   const setForecast = (cat, v) => persist({ ...data, forecasts: { ...data.forecasts, [fcYear]: { ...(data.forecasts[fcYear] || {}), [cat]: parseFloat(v) || 0 } } });
 
   const exportData = () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `財務備份_${todayISO()}.json`; a.click(); URL.revokeObjectURL(url); };
-  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
+  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
 
   const TABS = [
     { key: "overview", label: "總覽", icon: LayoutGrid },
@@ -1135,6 +1184,8 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          <AssetTrend history={data.assetHistory} base={base} latest={totalAssets} onMark={markAssetsToday} />
 
           {(data.accounts || []).length === 0 ? <EmptyState icon={Landmark} title="還沒有帳戶" desc="加入你的銀行、微信、現金、股票戶口等,填上目前餘額,就能看到總資產。" cta="新增帳戶" onCta={() => openAdd("account")} /> : (
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))" }}>
