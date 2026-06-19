@@ -342,6 +342,7 @@ export default function App() {
   const bMoney = (n) => `${base} ${fmt(n)}`;
   const acctNames = (data.accounts && data.accounts.length ? data.accounts.map((a) => a.name).filter(Boolean) : DEFAULT_ACCT_NAMES);
   const totalAssets = (data.accounts || []).reduce((s, a) => s + tb(a.balance, a.currency), 0);
+  const totalDiff = (data.accounts || []).reduce((s, a) => s + (a.baseline != null ? tb(numify(a.balance) - numify(a.baseline), a.currency) : 0), 0);
   const lines = useMemo(() => buildLines(data), [data]);
   // base value of a recorded payment, using the rate locked in at record time when present
   const paidBase = (rec, currency) => numify(rec.amount) * (rec.rate != null ? rec.rate : (rates[currency] || 1)) / (rates[base] || 1);
@@ -435,7 +436,7 @@ export default function App() {
     if (t === "insurance") rec.premium = numify(form.premium);
     if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
     if (t === "income" || t === "subscription" || t === "living" || t === "oneoff") rec.amount = numify(form.amount);
-    if (t === "account") rec.balance = numify(form.balance);
+    if (t === "account") { rec.balance = numify(form.balance); rec.baseline = (form.baseline == null || form.baseline === "") ? rec.balance : numify(form.baseline); }
     if (t === "transfer") {
       rec.amount = numify(form.amount);
       if (!rec.name) rec.name = `${form.from} → ${form.to}`;
@@ -459,10 +460,11 @@ export default function App() {
   const conv = (amt, from, to) => numify(amt) * (rates[from] || 1) / (rates[to] || 1);
   const round2 = (n) => Math.round(n * 100) / 100;
   const applyDeltas = (accounts, tr, sign) => (accounts || []).map((a) => {
-    if (a.name === tr.from) return { ...a, balance: round2(numify(a.balance) - sign * (tr.fromDelta || 0)) };
-    if (a.name === tr.to) return { ...a, balance: round2(numify(a.balance) + sign * (tr.toDelta || 0)) };
+    if (a.name === tr.from) { const d = sign * (tr.fromDelta || 0); return { ...a, balance: round2(numify(a.balance) - d), baseline: a.baseline == null ? a.baseline : round2(numify(a.baseline) - d) }; }
+    if (a.name === tr.to) { const d = sign * (tr.toDelta || 0); return { ...a, balance: round2(numify(a.balance) + d), baseline: a.baseline == null ? a.baseline : round2(numify(a.baseline) + d) }; }
     return a;
   });
+  const reconcileAccount = (id) => persist({ ...data, accounts: data.accounts.map((a) => a.id === id ? { ...a, baseline: numify(a.balance) } : a) });
   const snapshotAssets = (accounts, prevData) => {
     const today = todayISO();
     const total = (accounts || []).reduce((s, a) => s + numify(a.balance) * (rates[a.currency] || 1) / (rates[base] || 1), 0);
@@ -1195,7 +1197,7 @@ export default function App() {
           <div className="card" style={{ padding: 20, marginBottom: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div>
-                <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.muted }}>總資產</div>
+                <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.muted }}>總資產 · {(data.accounts || []).length} 個帳戶</div>
                 <div style={{ fontFamily: T.serif, fontSize: 28, fontWeight: 600, color: T.forest, fontVariantNumeric: "tabular-nums" }}>{bMoney(totalAssets)}</div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -1203,6 +1205,26 @@ export default function App() {
                 <div style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 600, color: totalAssets - M.debtTotal >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{`${totalAssets - M.debtTotal < 0 ? "−" : ""}${bMoney(Math.abs(totalAssets - M.debtTotal))}`}</div>
               </div>
             </div>
+            {totalDiff !== 0 && (
+              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, background: totalDiff < 0 ? "#FBEBE6" : T.forestSoft, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: totalDiff < 0 ? T.neg : T.forest }}>{totalDiff < 0 ? "目前比『本來』少了" : "目前比『本來』多了"}</span>
+                <span style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, color: totalDiff < 0 ? T.neg : T.forest, fontVariantNumeric: "tabular-nums" }}>{bMoney(Math.abs(totalDiff))}</span>
+              </div>
+            )}
+            {(data.accounts || []).length > 0 && (() => {
+              const byType = {}; const byCur = {};
+              (data.accounts || []).forEach((a) => { byType[a.type] = (byType[a.type] || 0) + tb(a.balance, a.currency); byCur[a.currency] = (byCur[a.currency] || 0) + numify(a.balance); });
+              const types = Object.keys(byType).sort((x, y) => byType[y] - byType[x]);
+              const curs = Object.keys(byCur).sort((x, y) => tb(byCur[y], y) - tb(byCur[x], x));
+              return (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.line}` }}>
+                  <div style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 7 }}>依類型</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{types.map((t) => <Badge key={t} color={T.forest} bg={T.forestSoft}>{ACCT_TYPES[t] || "其他"} · {bMoney(byType[t])}</Badge>)}</div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11, fontWeight: 600, color: T.muted, margin: "12px 0 7px" }}>依貨幣(原幣)</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{curs.map((c) => <Badge key={c} color={T.brass} bg={T.brassSoft}>{cur(byCur[c], c)}</Badge>)}</div>
+                </div>
+              );
+            })()}
           </div>
 
           <AssetTrend history={data.assetHistory} base={base} latest={totalAssets} onMark={markAssetsToday} />
@@ -1220,6 +1242,15 @@ export default function App() {
                   </div>
                   <div style={{ marginTop: 10, fontFamily: T.serif, fontSize: 22, fontWeight: 600, color: T.ink, fontVariantNumeric: "tabular-nums" }}>{cur(a.balance, a.currency)}</div>
                   <div style={{ marginTop: 4, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>≈ {bMoney(tb(a.balance, a.currency))}</div>
+                  {a.baseline != null && round2(numify(a.balance) - numify(a.baseline)) !== 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${T.line}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>本來 {cur(a.baseline, a.currency)}</span>
+                        <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 700, color: numify(a.balance) - numify(a.baseline) < 0 ? T.neg : T.pos }}>{numify(a.balance) - numify(a.baseline) < 0 ? "少了 " : "多了 "}{cur(Math.abs(numify(a.balance) - numify(a.baseline)), a.currency)}</span>
+                      </div>
+                      <button className="btn-ghost" style={{ marginTop: 6, padding: "3px 10px", fontSize: 11 }} onClick={() => reconcileAccount(a.id)} title="把『本來』設為目前餘額,差額歸零">對平(設為目前)</button>
+                    </div>
+                  )}
                   {a.note && <div style={{ marginTop: 7, fontFamily: T.sans, fontSize: 12, color: T.inkSoft }}>{a.note}</div>}
                 </div>
               ))}
@@ -1414,7 +1445,7 @@ export default function App() {
               <Field label="類型"><select className="sel" value={form.type} onChange={(e) => setF("type", e.target.value)}>{Object.entries(ACCT_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               <Field label="貨幣"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
             </div>
-            <Field label="目前餘額" hint="這個帳戶現在大約有多少(股票就填現值)。算進總資產。"><input className="inp" type="number" inputMode="decimal" placeholder="例如 50000" value={form.balance} onChange={(e) => setF("balance", e.target.value)} /></Field>
+            <Field label="目前餘額" hint="這個帳戶現在實際有多少(股票就填現值)。算進總資產。之後把它改成最新的實際金額,就會顯示和『本來』差多少、有沒有少錢。"><input className="inp" type="number" inputMode="decimal" placeholder="例如 50000" value={form.balance} onChange={(e) => setF("balance", e.target.value)} /></Field>
             <Field label="備註"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
           </>)}
 
