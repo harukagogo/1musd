@@ -85,7 +85,7 @@ const CARD_PRESETS = [
   { name: "HSBC Red · 一般簽賬 0.4%", currency: "HKD", per: 250, points: 1, unit: "獎賞錢", capType: "spend", capPeriod: "month", cap: "", scenes: ["本地HK", "海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "基本回贈0.4%,無上限。Red不參加最紅自主獎賞。" },
   { name: "HSBC Visa Signature · 賞世界 3.6%", currency: "HKD", per: 250, points: 9, unit: "獎賞錢", capType: "spend", capPeriod: "year", cap: 100000, scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "1X基本+5X自主(賞世界)+VS額外3X=9X=3.6%。賞世界=海外/中國內地/澳門的外幣簽賬(澳門用MOP簽計數)。每年首$100,000。需登記自主類別。" },
   { name: "HSBC Visa Signature · 五大類別 1.6%", currency: "HKD", per: 250, points: 4, unit: "獎賞錢", capType: "spend", capPeriod: "year", cap: 100000, scenes: ["本地HK", "網上", "指定商戶"], fxFee: 1.95, note: "沒放自主5X的其他四個類別:基本1X+VS額外3X=4X=1.6%。" },
-  { name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["指定商戶"], fxFee: 0, note: "指定日常及旅遊消費HK$2=1里(2.5%),無上限、唔使登記。範圍:特選咖啡店及輕便美食、本地交通出行、跨境交通和旅遊服務(見HSBC指定商戶名單)。海外外幣要$2/里請用「海外優惠階段」那張。" },
+  { name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["指定商戶"], fxFee: 0, note: "睇商戶唔睇貨幣(港幣、喺香港簽即可),唔使登記、無上限。四類:①咖啡輕食(星巴克/%Arabica/太平洋/Blue Bottle/Pret/Lady M) ②本地交通(九巴/城巴/新巴/MTR拍卡出入閘/指定的士App) ③跨境交通(香港中國旅行社/冠忠/永東/中國鐵路12306/GO巴) ④旅遊服務(金光飛航/噴射飛航/Klook/KKday/AIRSIM/AVIS/Hertz/租車)。⚠電子錢包、本地超市、保費、證券、租金管理費唔計。海外外幣$2/里請用「海外優惠階段」那張。" },
   { name: "HSBC EveryMile · 一般簽賬 $5=1里", currency: "HKD", per: 5, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["本地HK", "網上", "海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "本地及一般簽賬HK$5=1里(1%)。$1獎賞錢=20里(EveryMile專屬)。" },
   { name: "HSBC EveryMile · 海外優惠階段(需登記)", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "custom", capFrom: 7, capTo: 12, minSpend: 12000, cap: 15000, scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "海外外幣簽賬:基本1%+額外1.5%=2.5%(HK$2=1里)。需先在Reward+登記。每階段要簽滿HK$12,000先解鎖,額外回贈上限$225獎賞錢(即約簽$15,000到頂)。階段月份請按最新推廣期自行修改。" },
   { name: "AMEX Platinum · 本地簽賬(加倍加賞)", currency: "HKD", per: 1, points: 2, unit: "分", capType: "spend", capPeriod: "year", cap: 160000, scenes: ["本地HK", "網上"], fxFee: 1.95, note: "基本1分+加倍加賞1分=每HK$1得2分。計劃年度首HK$160,000,其後每HK$1得1分。18分=1里。" },
@@ -123,7 +123,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymOf = (y, m) => `${y}-${String(m).padStart(2, "0")}`;
 /* 一次性修正:舊版「指定/海外」卡錯誤地涵蓋海外場景(海外要登記+門檻,應由「海外優惠階段」卡處理) */
 const migrateCards = (list) => (list || []).map((c) => (c && c.name === "HSBC EveryMile · 指定/海外 $2=1里"
-  ? { ...c, name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", scenes: ["指定商戶"], fxFee: 0, note: "指定日常及旅遊消費HK$2=1里(2.5%),無上限、唔使登記。範圍:特選咖啡店及輕便美食、本地交通出行、跨境交通和旅遊服務。海外外幣要$2/里請用「海外優惠階段」那張。" }
+  ? { ...c, name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", scenes: ["指定商戶"], fxFee: 0, note: "睇商戶唔睇貨幣(港幣、喺香港簽即可),唔使登記、無上限。四類:①咖啡輕食(星巴克/%Arabica/太平洋/Blue Bottle/Pret/Lady M) ②本地交通(九巴/城巴/新巴/MTR拍卡出入閘/指定的士App) ③跨境交通(香港中國旅行社/冠忠/永東/中國鐵路12306/GO巴) ④旅遊服務(金光飛航/噴射飛航/Klook/KKday/AIRSIM/AVIS/Hertz/租車)。⚠電子錢包、本地超市、保費、證券、租金管理費唔計。海外外幣$2/里請用「海外優惠階段」那張。" }
   : c));
 const dueMonthsOf = (freq, anchor) => { const n = FREQ[freq]?.n || 12; if (n === 12) return null; const step = 12 / n; const set = []; for (let k = 0; k < n; k++) set.push(((anchor - 1 + k * step) % 12) + 1); return set; };
 const isDue = (freq, anchor, month) => { const dm = dueMonthsOf(freq, anchor); return dm === null ? true : dm.includes(month); };
