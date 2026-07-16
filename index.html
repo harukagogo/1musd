@@ -87,6 +87,7 @@ const CARD_PRESETS = [
   { name: "HSBC Visa Signature · 五大類別 1.6%", currency: "HKD", per: 250, points: 4, unit: "獎賞錢", capType: "spend", capPeriod: "year", cap: 100000, scenes: ["本地HK", "網上", "指定商戶"], fxFee: 1.95, note: "沒放自主5X的其他四個類別:基本1X+VS額外3X=4X=1.6%。" },
   { name: "HSBC EveryMile · 指定/海外 $2=1里", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["海外外幣", "指定商戶", "澳門", "中國內地"], fxFee: 1.95, note: "指定日常及旅遊消費HK$2=1里(2.5%)。海外外幣額外1.5%需登記、每階段簽滿$12,000,額外回贈上限$225獎賞錢/季。" },
   { name: "HSBC EveryMile · 一般簽賬 $5=1里", currency: "HKD", per: 5, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["本地HK", "網上", "海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "本地及一般簽賬HK$5=1里(1%)。$1獎賞錢=20里(EveryMile專屬)。" },
+  { name: "HSBC EveryMile · 海外優惠階段(需登記)", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "custom", capFrom: 7, capTo: 12, minSpend: 12000, cap: 15000, scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "海外外幣簽賬:基本1%+額外1.5%=2.5%(HK$2=1里)。需先在Reward+登記。每階段要簽滿HK$12,000先解鎖,額外回贈上限$225獎賞錢(即約簽$15,000到頂)。階段月份請按最新推廣期自行修改。" },
   { name: "AMEX Platinum · 本地簽賬(加倍加賞)", currency: "HKD", per: 1, points: 2, unit: "分", capType: "spend", capPeriod: "year", cap: 160000, scenes: ["本地HK", "網上"], fxFee: 1.95, note: "基本1分+加倍加賞1分=每HK$1得2分。計劃年度首HK$160,000,其後每HK$1得1分。18分=1里。" },
   { name: "AMEX Platinum · 外幣簽賬 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["海外外幣", "澳門", "中國內地", "網上"], fxFee: 1.95, note: "基本3+加倍1+額外5=9分/HK$1(≈HK$2=1里)。需登記積分加賞(2026年7月1日起要重新登記);每曆年季度首HK$15,000。超出得4分。外幣包括澳門幣。" },
   { name: "AMEX Platinum · 指定旅遊商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["網上", "指定商戶"], fxFee: 1.95, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。Agoda、Trip.com、Expedia、Booking.com等;每季首HK$15,000。" },
@@ -420,7 +421,7 @@ export default function App() {
     oneoff: { name: "", category: "", currency: "MOP", amount: "", date: todayISO(), account: "", note: "" },
     account: { name: "", type: "bank", currency: "HKD", balance: "", note: "" },
     transfer: { name: "", from: "", to: "", currency: "HKD", amount: "", date: todayISO(), note: "" },
-    card: { name: "", currency: "HKD", per: "250", points: "1", unit: "獎賞錢", capType: "spend", capPeriod: "month", cap: "", scenes: [], mileRate: "", fxFee: "1.95", note: "" },
+    card: { name: "", currency: "HKD", per: "250", points: "1", unit: "獎賞錢", capType: "spend", capPeriod: "month", capFrom: "1", capTo: "3", minSpend: "", cap: "", scenes: [], mileRate: "", fxFee: "1.95", note: "" },
   };
   const titles = { property: "物業", insurance: "保險", debt: "負債", income: "收入來源", subscription: "固定費 / 訂閱", living: "生活費", oneoff: "臨時支出", account: "帳戶 / 資產", transfer: "轉賬 / 提現 / 存入", card: "信用卡" };
   const collOf = { property: "properties", insurance: "insurances", debt: "debts", income: "incomes", subscription: "subscriptions", living: "living", oneoff: "oneoffs", account: "accounts", transfer: "transfers", card: "cards" };
@@ -464,7 +465,7 @@ export default function App() {
     if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
     if (t === "income" || t === "subscription" || t === "living" || t === "oneoff") rec.amount = numify(form.amount);
     if (t === "account") { rec.balance = numify(form.balance); rec.baseline = (form.baseline == null || form.baseline === "") ? rec.balance : numify(form.baseline); }
-    if (t === "card") { rec.per = numify(form.per) || 1; rec.points = numify(form.points) || 0; rec.cap = form.cap === "" ? "" : numify(form.cap); rec.capPeriod = form.capPeriod || "month"; rec.scenes = form.scenes || []; rec.mileRate = form.mileRate === "" ? "" : numify(form.mileRate); rec.fxFee = form.fxFee === "" ? 0 : numify(form.fxFee); }
+    if (t === "card") { rec.per = numify(form.per) || 1; rec.points = numify(form.points) || 0; rec.cap = form.cap === "" ? "" : numify(form.cap); rec.capPeriod = form.capPeriod || "month"; rec.capFrom = parseInt(form.capFrom, 10) || 1; rec.capTo = parseInt(form.capTo, 10) || 12; rec.minSpend = form.minSpend === "" ? "" : numify(form.minSpend); rec.scenes = form.scenes || []; rec.mileRate = form.mileRate === "" ? "" : numify(form.mileRate); rec.fxFee = form.fxFee === "" ? 0 : numify(form.fxFee); }
     if (t === "transfer") {
       rec.amount = numify(form.amount);
       if (!rec.name) rec.name = `${form.from} → ${form.to}`;
@@ -1419,8 +1420,16 @@ export default function App() {
             const shift = (d) => { let y = cy, m = cm + d; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } setCardYM(ymOf(y, m)); };
             const spendMap = (data.cardSpend || {})[cardYM] || {};
             const PERIOD_LABEL = { month: "本月", quarter: "本季", year: "全年" };
-            const periodMonths = (pr) => { if (pr === "year") return Array.from({ length: 12 }, (_, i) => ymOf(cy, i + 1)); if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return [0, 1, 2].map((i) => ymOf(cy, q0 + i)); } return [cardYM]; };
-            const periodSpend = (c) => periodMonths(c.capPeriod || "month").reduce((s, ym) => s + numify(((data.cardSpend || {})[ym] || {})[c.id]), 0);
+            const periodMonths = (c) => {
+              const pr = c.capPeriod || "month";
+              if (pr === "year") return Array.from({ length: 12 }, (_, i) => ymOf(cy, i + 1));
+              if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return [0, 1, 2].map((i) => ymOf(cy, q0 + i)); }
+              if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; const out = []; for (let m = Math.min(a, b); m <= Math.max(a, b); m++) out.push(ymOf(cy, m)); return out; }
+              return [cardYM];
+            };
+            const inPeriod = (c) => periodMonths(c).includes(cardYM);
+            const periodSpend = (c) => periodMonths(c).reduce((s, ym) => s + numify(((data.cardSpend || {})[ym] || {})[c.id]), 0);
+            const prLabel = (c) => { const pr = c.capPeriod || "month"; if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; return `${Math.min(a, b)}-${Math.max(a, b)}月階段`; } return PERIOD_LABEL[pr]; };
             return (
               <div>
                 <div className="card" style={{ padding: 20, marginBottom: 16 }}>
@@ -1445,7 +1454,9 @@ export default function App() {
                       const pS = periodSpend(c);
                       const full = cap != null && c.capType === "spend" && pS >= cap;
                       const leftAmt = cap != null && c.capType === "spend" ? Math.max(0, cap - pS) : null;
-                      return { c, gross, net: gross - fee, fee, full, leftAmt, costPerMile, pr: c.capPeriod || "month" };
+                      const minS = c.minSpend === "" || c.minSpend == null ? null : numify(c.minSpend);
+                      const locked = minS != null && pS < minS;
+                      return { c, gross, net: gross - fee, fee, full, leftAmt, costPerMile, locked, needMore: locked ? minS - pS : 0, label: prLabel(c) };
                     }).sort((a, b) => (a.full === b.full ? a.costPerMile - b.costPerMile : a.full ? 1 : -1));
                     if (!ranked.length) return <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted }}>沒有卡標示適用於「{scene}」。編輯卡片時可以剔選適用場景。</div>;
                     return (
@@ -1456,7 +1467,8 @@ export default function App() {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink }}>{r.c.name}</div>
                               <div style={{ fontFamily: T.sans, fontSize: 10.5, color: r.full ? T.neg : T.muted, marginTop: 2 }}>
-                                {r.full ? `已用完${PERIOD_LABEL[r.pr]}上限,改用下一張` : r.leftAmt != null ? `${PERIOD_LABEL[r.pr]}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}
+                                {r.full ? `已用完${r.label}上限,改用下一張` : r.leftAmt != null ? `${r.label}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}
+                                {r.locked ? ` · ⚠ 仲要簽 ${cur(r.needMore, r.c.currency)} 先解鎖` : ""}
                                 {r.fee > 0 ? ` · 已計 ${r.fee}% 外幣手續費` : ""}
                               </div>
                             </div>
@@ -1481,7 +1493,6 @@ export default function App() {
                 <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))" }}>
                   {data.cards.map((c) => {
                     const per = numify(c.per) || 1, ppu = numify(c.points), cap = c.cap === "" || c.cap == null ? null : numify(c.cap);
-                    const pr = c.capPeriod || "month";
                     const spend = numify(spendMap[c.id]);
                     const pSpend = periodSpend(c);
                     const capSpend = c.capType === "spend" && cap != null;
@@ -1498,7 +1509,7 @@ export default function App() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontFamily: T.serif, fontSize: 15.5, fontWeight: 600, display: "flex", alignItems: "flex-start", gap: 7 }}><CreditCard size={15} color={T.brass} style={{ flexShrink: 0, marginTop: 3 }} /><span>{c.name}</span></div>
-                            <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>每 {cur(per, c.currency)} = {fmt(ppu)} {c.unit || "分"}{cap != null ? ` · 上限 ${c.capType === "spend" ? cur(cap, c.currency) : fmt(cap) + " " + (c.unit || "分")} / ${pr === "year" ? "年" : pr === "quarter" ? "季" : "月"}` : " · 無上限"}</div>
+                            <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>每 {cur(per, c.currency)} = {fmt(ppu)} {c.unit || "分"}{cap != null ? ` · 上限 ${c.capType === "spend" ? cur(cap, c.currency) : fmt(cap) + " " + (c.unit || "分")} / ${prLabel(c)}` : " · 無上限"}</div>
                             {(() => { const mr = c.mileRate != null && c.mileRate !== "" ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0); const m = ppu * mr; if (!(m > 0)) return null; return <div style={{ marginTop: 6 }}><Badge color={T.forest} bg={T.forestSoft}>≈ HK${(per / m).toFixed(2)} = 1里</Badge></div>; })()}
                           </div>
                           <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("card", c)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("card", c.id)}><Trash2 size={14} /></IconBtn></div>
@@ -1511,16 +1522,21 @@ export default function App() {
 
                         <div style={{ marginTop: 12, display: "flex", gap: 16, flexWrap: "wrap" }}>
                           <Mini label={`${cm}月可拿`} value={`${fmt(monthPts)} ${c.unit || "分"}`} accent={T.pos} />
-                          {cap != null && <Mini label={`${PERIOD_LABEL[pr]}累計簽賬`} value={cur(pSpend, c.currency)} accent={T.ink} />}
+                          {cap != null && <Mini label={`${prLabel(c)}累計`} value={cur(pSpend, c.currency)} accent={T.ink} />}
                           {cap != null && <Mini label={c.capType === "spend" ? "還可簽" : "還可拿"} value={c.capType === "spend" ? cur(left, c.currency) : `${fmt(left)} ${c.unit || "分"}`} accent={over ? T.neg : T.ink} />}
                         </div>
 
                         {cap != null && (
                           <div style={{ marginTop: 10 }}>
                             <div style={{ height: 8, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: over ? T.brass : T.forest, borderRadius: 999, transition: "width .4s ease" }} /></div>
-                            <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11, color: over ? T.brass : T.muted, fontWeight: over ? 700 : 500 }}>{over ? `已用完${PERIOD_LABEL[pr]}上限,再簽只有基本回贈` : `${PERIOD_LABEL[pr]}已用 ${Math.round(pct)}% 上限`}</div>
+                            <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11, color: over ? T.brass : T.muted, fontWeight: over ? 700 : 500 }}>{over ? `已用完${prLabel(c)}上限,再簽只有基本回贈` : `${prLabel(c)}已用 ${Math.round(pct)}% 上限`}</div>
                           </div>
                         )}
+                        {(() => { const minS = c.minSpend === "" || c.minSpend == null ? null : numify(c.minSpend); if (minS == null) return null; const ok = pSpend >= minS; return (
+                          <div style={{ marginTop: 10, padding: "8px 11px", borderRadius: 10, background: ok ? T.forestSoft : "#FBEBE6" }}>
+                            <div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: ok ? T.forest : T.neg }}>{ok ? `✓ 已解鎖(${prLabel(c)}已簽 ${cur(pSpend, c.currency)})` : `未解鎖:${prLabel(c)}要先簽滿 ${cur(minS, c.currency)},仲差 ${cur(minS - pSpend, c.currency)}`}</div>
+                          </div>
+                        ); })()}
                         {c.note && <div style={{ marginTop: 8, fontFamily: T.sans, fontSize: 11.5, color: T.inkSoft, lineHeight: 1.5 }}>{c.note}</div>}
                       </div>
                     );
@@ -1731,9 +1747,16 @@ export default function App() {
             <div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.brass, letterSpacing: ".08em", marginBottom: 2, marginTop: 4 }}>上限</div>
             <div className="fgrid2">
               <Field label="上限類型"><select className="sel" value={form.capType} onChange={(e) => setF("capType", e.target.value)}><option value="spend">簽賬金額上限</option><option value="points">積分 / 里數上限</option></select></Field>
-              <Field label="上限週期" hint="每月 / 每季 / 每年計"><select className="sel" value={form.capPeriod || "month"} onChange={(e) => setF("capPeriod", e.target.value)}><option value="month">每月</option><option value="quarter">每季</option><option value="year">每年</option></select></Field>
+              <Field label="上限週期" hint="每月 / 每季 / 每年 / 自訂階段"><select className="sel" value={form.capPeriod || "month"} onChange={(e) => setF("capPeriod", e.target.value)}><option value="month">每月</option><option value="quarter">每季(曆年季度)</option><option value="year">每年</option><option value="custom">自訂階段(幾月到幾月)</option></select></Field>
             </div>
+            {form.capPeriod === "custom" && (
+              <div className="fgrid2">
+                <Field label="階段由幾月開始"><select className="sel" value={form.capFrom || "1"} onChange={(e) => setF("capFrom", e.target.value)}>{Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m} 月</option>)}</select></Field>
+                <Field label="到幾月結束"><select className="sel" value={form.capTo || "3"} onChange={(e) => setF("capTo", e.target.value)}>{Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m} 月</option>)}</select></Field>
+              </div>
+            )}
             <Field label="上限數值" hint="留空 = 無上限。例如 Red 網購:10000(每月);VS 最紅自主:100000(每年)"><input className="inp" type="number" inputMode="decimal" placeholder="例如 10000" value={form.cap} onChange={(e) => setF("cap", e.target.value)} /></Field>
+            <Field label="解鎖門檻(該週期要先簽滿)" hint="留空 = 無門檻。例如 EveryMile 海外優惠要每階段簽滿 12000 先有額外回贈"><input className="inp" type="number" inputMode="decimal" placeholder="例如 12000" value={form.minSpend} onChange={(e) => setF("minSpend", e.target.value)} /></Field>
             <div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: T.brass, letterSpacing: ".08em", marginBottom: 2, marginTop: 4 }}>適用場景(用來推薦用邊張卡)</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               {SCENES.map((sc) => { const on = (form.scenes || []).includes(sc); return (
