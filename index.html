@@ -85,13 +85,13 @@ const CARD_PRESETS = [
   { name: "HSBC Red · 一般簽賬 0.4%", currency: "HKD", per: 250, points: 1, unit: "獎賞錢", capType: "spend", capPeriod: "month", cap: "", scenes: ["本地HK", "海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "基本回贈0.4%,無上限。Red不參加最紅自主獎賞。" },
   { name: "HSBC Visa Signature · 賞世界 3.6%", currency: "HKD", per: 250, points: 9, unit: "獎賞錢", capType: "spend", capPeriod: "year", cap: 100000, scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "1X基本+5X自主(賞世界)+VS額外3X=9X=3.6%。賞世界=海外/中國內地/澳門的外幣簽賬(澳門用MOP簽計數)。每年首$100,000。需登記自主類別。" },
   { name: "HSBC Visa Signature · 五大類別 1.6%", currency: "HKD", per: 250, points: 4, unit: "獎賞錢", capType: "spend", capPeriod: "year", cap: 100000, scenes: ["本地HK", "網上", "指定商戶"], fxFee: 1.95, note: "沒放自主5X的其他四個類別:基本1X+VS額外3X=4X=1.6%。" },
-  { name: "HSBC EveryMile · 指定/海外 $2=1里", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["海外外幣", "指定商戶", "澳門", "中國內地"], fxFee: 1.95, note: "指定日常及旅遊消費HK$2=1里(2.5%)。海外外幣額外1.5%需登記、每階段簽滿$12,000,額外回贈上限$225獎賞錢/季。" },
+  { name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["指定商戶"], fxFee: 0, note: "指定日常及旅遊消費HK$2=1里(2.5%),無上限、唔使登記。範圍:特選咖啡店及輕便美食、本地交通出行、跨境交通和旅遊服務(見HSBC指定商戶名單)。海外外幣要$2/里請用「海外優惠階段」那張。" },
   { name: "HSBC EveryMile · 一般簽賬 $5=1里", currency: "HKD", per: 5, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["本地HK", "網上", "海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "本地及一般簽賬HK$5=1里(1%)。$1獎賞錢=20里(EveryMile專屬)。" },
   { name: "HSBC EveryMile · 海外優惠階段(需登記)", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "custom", capFrom: 7, capTo: 12, minSpend: 12000, cap: 15000, scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "海外外幣簽賬:基本1%+額外1.5%=2.5%(HK$2=1里)。需先在Reward+登記。每階段要簽滿HK$12,000先解鎖,額外回贈上限$225獎賞錢(即約簽$15,000到頂)。階段月份請按最新推廣期自行修改。" },
   { name: "AMEX Platinum · 本地簽賬(加倍加賞)", currency: "HKD", per: 1, points: 2, unit: "分", capType: "spend", capPeriod: "year", cap: 160000, scenes: ["本地HK", "網上"], fxFee: 1.95, note: "基本1分+加倍加賞1分=每HK$1得2分。計劃年度首HK$160,000,其後每HK$1得1分。18分=1里。" },
-  { name: "AMEX Platinum · 外幣簽賬 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["海外外幣", "澳門", "中國內地", "網上"], fxFee: 1.95, note: "基本3+加倍1+額外5=9分/HK$1(≈HK$2=1里)。需登記積分加賞(2026年7月1日起要重新登記);每曆年季度首HK$15,000。超出得4分。外幣包括澳門幣。" },
-  { name: "AMEX Platinum · 指定旅遊商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["網上", "指定商戶"], fxFee: 1.95, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。Agoda、Trip.com、Expedia、Booking.com等;每季首HK$15,000。" },
-  { name: "AMEX Platinum · 指定日常商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["本地HK", "指定商戶"], fxFee: 1.95, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。惠康、百佳、萬寧、屈臣氏、一田等;每季首HK$15,000。" },
+  { name: "AMEX Platinum · 外幣簽賬 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["海外外幣", "澳門", "中國內地", "網上"], fxFee: 1.95, note: "基本3+加倍1+額外5=9分/HK$1(≈HK$2=1里)。⚠2026年7月1日起新一輪要重新登記。每曆年季度首HK$15,000,超出得4分。外幣睇貨幣唔睇商戶:澳門用MOP、日本酒店到付用JPY都計。港幣結算(DCC)唔計。" },
+  { name: "AMEX Platinum · 指定旅遊商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["網上", "指定商戶"], fxFee: 1.95, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。名單=航空公司+指定網上旅遊平台(Agoda、Trip.com、Expedia、Booking.com)。⚠必須由該平台收錢:訂咗但到酒店先付=酒店收錢,唔計呢7分(但如用外幣付可走外幣9X)。每季首HK$15,000。" },
+  { name: "AMEX Platinum · 指定日常商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["本地HK", "指定商戶"], fxFee: 1.95, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。惠康、百佳、萬寧、屈臣氏、一田等,實體店碌卡一樣計(唔使網上)。每季首HK$15,000。" },
 ];
 
 /* ===================== Constants ===================== */
@@ -121,6 +121,10 @@ const activeRange = (start, end, y, m) => { const idx = ymIdx(y, m); if (start) 
 const countdownText = (s) => { const m = monthsUntil(s); if (m == null) return null; if (m < 0) return "已完成"; if (m === 0) return "本月"; if (m < 12) return `還剩 ${m} 個月`; const y = Math.floor(m / 12), mm = m % 12; return `還剩 ${y} 年${mm ? ` ${mm} 個月` : ""}`; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymOf = (y, m) => `${y}-${String(m).padStart(2, "0")}`;
+/* 一次性修正:舊版「指定/海外」卡錯誤地涵蓋海外場景(海外要登記+門檻,應由「海外優惠階段」卡處理) */
+const migrateCards = (list) => (list || []).map((c) => (c && c.name === "HSBC EveryMile · 指定/海外 $2=1里"
+  ? { ...c, name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", scenes: ["指定商戶"], fxFee: 0, note: "指定日常及旅遊消費HK$2=1里(2.5%),無上限、唔使登記。範圍:特選咖啡店及輕便美食、本地交通出行、跨境交通和旅遊服務。海外外幣要$2/里請用「海外優惠階段」那張。" }
+  : c));
 const dueMonthsOf = (freq, anchor) => { const n = FREQ[freq]?.n || 12; if (n === 12) return null; const step = 12 / n; const set = []; for (let k = 0; k < n; k++) set.push(((anchor - 1 + k * step) % 12) + 1); return set; };
 const isDue = (freq, anchor, month) => { const dm = dueMonthsOf(freq, anchor); return dm === null ? true : dm.includes(month); };
 
@@ -322,7 +326,7 @@ export default function App() {
         const snap = await getDoc(doc(fbDb, "users", user.uid));
         if (snap.exists() && snap.data().json) {
           const o = JSON.parse(snap.data().json);
-          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: o.cards || [], cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} });
+          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: migrateCards(o.cards), cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} });
         } else { setData(EMPTY); }
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -427,7 +431,7 @@ export default function App() {
   const collOf = { property: "properties", insurance: "insurances", debt: "debts", income: "incomes", subscription: "subscriptions", living: "living", oneoff: "oneoffs", account: "accounts", transfer: "transfers", card: "cards" };
 
   const openAdd = (t) => { setForm(JSON.parse(JSON.stringify(defaults[t]))); setModal({ type: t }); };
-  const openEdit = (t, item) => { setForm(JSON.parse(JSON.stringify(item))); setModal({ type: t, id: item.id }); };
+  const openEdit = (t, item) => { setForm({ ...JSON.parse(JSON.stringify(defaults[t])), ...JSON.parse(JSON.stringify(item)) }); setModal({ type: t, id: item.id }); };
   const close = () => setModal(null);
   const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setLoanF = (k, v) => setForm((f) => ({ ...f, loan: { ...(f.loan || {}), [k]: v } }));
@@ -465,7 +469,7 @@ export default function App() {
     if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
     if (t === "income" || t === "subscription" || t === "living" || t === "oneoff") rec.amount = numify(form.amount);
     if (t === "account") { rec.balance = numify(form.balance); rec.baseline = (form.baseline == null || form.baseline === "") ? rec.balance : numify(form.baseline); }
-    if (t === "card") { rec.per = numify(form.per) || 1; rec.points = numify(form.points) || 0; rec.cap = form.cap === "" ? "" : numify(form.cap); rec.capPeriod = form.capPeriod || "month"; rec.capFrom = parseInt(form.capFrom, 10) || 1; rec.capTo = parseInt(form.capTo, 10) || 12; rec.minSpend = form.minSpend === "" ? "" : numify(form.minSpend); rec.scenes = form.scenes || []; rec.mileRate = form.mileRate === "" ? "" : numify(form.mileRate); rec.fxFee = form.fxFee === "" ? 0 : numify(form.fxFee); }
+    if (t === "card") { const opt = (v) => (v === "" || v == null ? "" : numify(v)); rec.per = numify(form.per) || 1; rec.points = numify(form.points) || 0; rec.cap = opt(form.cap); rec.capPeriod = form.capPeriod || "month"; rec.capFrom = parseInt(form.capFrom, 10) || 1; rec.capTo = parseInt(form.capTo, 10) || 12; rec.minSpend = opt(form.minSpend); rec.scenes = form.scenes || []; rec.mileRate = opt(form.mileRate); rec.fxFee = form.fxFee === "" || form.fxFee == null ? 1.95 : numify(form.fxFee); }
     if (t === "transfer") {
       rec.amount = numify(form.amount);
       if (!rec.name) rec.name = `${form.from} → ${form.to}`;
@@ -529,7 +533,7 @@ export default function App() {
   const setForecast = (cat, v) => persist({ ...data, forecasts: { ...data.forecasts, [fcYear]: { ...(data.forecasts[fcYear] || {}), [cat]: parseFloat(v) || 0 } } });
 
   const exportData = () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `財務備份_${todayISO()}.json`; a.click(); URL.revokeObjectURL(url); };
-  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: o.cards || [], cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
+  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: migrateCards(o.cards), cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
 
   const TABS = [
     { key: "overview", label: "總覽", icon: LayoutGrid },
@@ -1444,17 +1448,17 @@ export default function App() {
                     const isFx = FX_SCENES.includes(scene);
                     const ranked = data.cards.filter((c) => (c.scenes || []).includes(scene)).map((c) => {
                       const per = numify(c.per) || 1, ppu = numify(c.points);
-                      const mr = c.mileRate != null && c.mileRate !== "" ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0);
+                      const mr = numify(c.mileRate) > 0 ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0);
                       const pv = PT_VALUE[c.unit] ?? 0;
                       const gross = (ppu / per) * pv * 100;
                       const fee = isFx ? numify(c.fxFee ?? 1.95) : 0;
                       const miles = ppu * mr;
                       const costPerMile = miles > 0 ? (per * (1 + fee / 100)) / miles : Infinity;
-                      const cap = c.cap === "" || c.cap == null ? null : numify(c.cap);
+                      const cap = numify(c.cap) > 0 ? numify(c.cap) : null;
                       const pS = periodSpend(c);
                       const full = cap != null && c.capType === "spend" && pS >= cap;
                       const leftAmt = cap != null && c.capType === "spend" ? Math.max(0, cap - pS) : null;
-                      const minS = c.minSpend === "" || c.minSpend == null ? null : numify(c.minSpend);
+                      const minS = numify(c.minSpend) > 0 ? numify(c.minSpend) : null;
                       const locked = minS != null && pS < minS;
                       return { c, gross, net: gross - fee, fee, full, leftAmt, costPerMile, locked, needMore: locked ? minS - pS : 0, label: prLabel(c) };
                     }).sort((a, b) => (a.full === b.full ? a.costPerMile - b.costPerMile : a.full ? 1 : -1));
@@ -1492,7 +1496,7 @@ export default function App() {
 
                 <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))" }}>
                   {data.cards.map((c) => {
-                    const per = numify(c.per) || 1, ppu = numify(c.points), cap = c.cap === "" || c.cap == null ? null : numify(c.cap);
+                    const per = numify(c.per) || 1, ppu = numify(c.points), cap = numify(c.cap) > 0 ? numify(c.cap) : null;
                     const spend = numify(spendMap[c.id]);
                     const pSpend = periodSpend(c);
                     const capSpend = c.capType === "spend" && cap != null;
@@ -1510,7 +1514,7 @@ export default function App() {
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontFamily: T.serif, fontSize: 15.5, fontWeight: 600, display: "flex", alignItems: "flex-start", gap: 7 }}><CreditCard size={15} color={T.brass} style={{ flexShrink: 0, marginTop: 3 }} /><span>{c.name}</span></div>
                             <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>每 {cur(per, c.currency)} = {fmt(ppu)} {c.unit || "分"}{cap != null ? ` · 上限 ${c.capType === "spend" ? cur(cap, c.currency) : fmt(cap) + " " + (c.unit || "分")} / ${prLabel(c)}` : " · 無上限"}</div>
-                            {(() => { const mr = c.mileRate != null && c.mileRate !== "" ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0); const m = ppu * mr; if (!(m > 0)) return null; return <div style={{ marginTop: 6 }}><Badge color={T.forest} bg={T.forestSoft}>≈ HK${(per / m).toFixed(2)} = 1里</Badge></div>; })()}
+                            {(() => { const mr = numify(c.mileRate) > 0 ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0); const m = ppu * mr; if (!(m > 0)) return null; return <div style={{ marginTop: 6 }}><Badge color={T.forest} bg={T.forestSoft}>≈ HK${(per / m).toFixed(2)} = 1里</Badge></div>; })()}
                           </div>
                           <div style={{ display: "flex", gap: 2 }}><IconBtn title="編輯" onClick={() => openEdit("card", c)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("card", c.id)}><Trash2 size={14} /></IconBtn></div>
                         </div>
@@ -1532,7 +1536,7 @@ export default function App() {
                             <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11, color: over ? T.brass : T.muted, fontWeight: over ? 700 : 500 }}>{over ? `已用完${prLabel(c)}上限,再簽只有基本回贈` : `${prLabel(c)}已用 ${Math.round(pct)}% 上限`}</div>
                           </div>
                         )}
-                        {(() => { const minS = c.minSpend === "" || c.minSpend == null ? null : numify(c.minSpend); if (minS == null) return null; const ok = pSpend >= minS; return (
+                        {(() => { const minS = numify(c.minSpend) > 0 ? numify(c.minSpend) : null; if (minS == null) return null; const ok = pSpend >= minS; return (
                           <div style={{ marginTop: 10, padding: "8px 11px", borderRadius: 10, background: ok ? T.forestSoft : "#FBEBE6" }}>
                             <div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 700, color: ok ? T.forest : T.neg }}>{ok ? `✓ 已解鎖(${prLabel(c)}已簽 ${cur(pSpend, c.currency)})` : `未解鎖:${prLabel(c)}要先簽滿 ${cur(minS, c.currency)},仲差 ${cur(minS - pSpend, c.currency)}`}</div>
                           </div>
