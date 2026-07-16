@@ -32,7 +32,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Wallet, Building2, Shield, CreditCard, Coins, Repeat, Plus, Trash2, Pencil, X,
   Download, Upload, RotateCcw, LayoutGrid, Sliders, Flag, ChevronDown, ArchiveRestore,
-  CalendarCheck, Target, ChevronLeft, ChevronRight, CheckCircle2, Circle, ShoppingBag, Receipt, RefreshCw, LogOut, MapPin, Landmark, ArrowRightLeft, TrendingUp, PiggyBank,
+  CalendarCheck, Target, ChevronLeft, ChevronRight, CheckCircle2, Circle, ShoppingBag, Receipt, RefreshCw, LogOut, MapPin, Landmark, ArrowRightLeft, TrendingUp, PiggyBank, Plane, Users,
 } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -160,7 +160,7 @@ function buildLines(data) {
 
 /* ===================== Seed (from 重要.xlsx) ===================== */
 const KEY = "finance-data-v2";
-const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], accounts: [], transfers: [], assetHistory: [], cards: [], cardSpend: {}, payments: {}, forecasts: {} };
+const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], accounts: [], transfers: [], assetHistory: [], cards: [], cardSpend: {}, trips: [], payments: {}, forecasts: {} };
 const SEED = EMPTY; // personal data removed for public hosting; load via import after sign-in
 const hasStore = typeof window !== "undefined" && window.storage;
 
@@ -255,6 +255,31 @@ function Field({ label, hint, children }) {
 function CurSelect({ value, onChange }) {
   return <select className="sel" value={value} onChange={(e) => onChange(e.target.value)}>{CUR_LIST.map((c) => <option key={c} value={c}>{c} · {CUR_LABEL[c]}</option>)}</select>;
 }
+const TRIP_CATS = ["機票", "住宿", "食", "交通", "購物", "門票", "其他"];
+function TripItemAdd({ tr, onAdd }) {
+  const [label, setLabel] = React.useState("");
+  const [amount, setAmount] = React.useState("");
+  const [currency, setCurrency] = React.useState(tr.currency || "JPY");
+  const [cat, setCat] = React.useState("食");
+  const [date, setDate] = React.useState(todayISO());
+  const ok = numify(amount) > 0;
+  const submit = () => { if (!ok) return; onAdd({ label: label.trim() || cat, amount: numify(amount), currency, cat, date }); setLabel(""); setAmount(""); };
+  return (
+    <div style={{ background: T.surfaceAlt, borderRadius: 12, padding: 13 }}>
+      <div style={{ fontFamily: T.sans, fontSize: 12, fontWeight: 700, color: T.brass, letterSpacing: ".06em", marginBottom: 9 }}>加一筆使費</div>
+      <div className="fgrid2" style={{ marginBottom: 0 }}>
+        <label style={{ display: "block", marginBottom: 10 }}><div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, marginBottom: 5 }}>用咗做咩</div><input className="inp" placeholder="例如:一蘭拉麵" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
+        <label style={{ display: "block", marginBottom: 10 }}><div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, marginBottom: 5 }}>類別</div><select className="sel" value={cat} onChange={(e) => setCat(e.target.value)}>{TRIP_CATS.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+      </div>
+      <div className="fgrid2" style={{ marginBottom: 0 }}>
+        <label style={{ display: "block", marginBottom: 10 }}><div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, marginBottom: 5 }}>金額</div><input className="inp" type="number" inputMode="decimal" placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ textAlign: "right", fontWeight: 700 }} /></label>
+        <label style={{ display: "block", marginBottom: 10 }}><div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, marginBottom: 5 }}>貨幣</div><CurSelect value={currency} onChange={setCurrency} /></label>
+      </div>
+      <label style={{ display: "block", marginBottom: 10 }}><div style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, marginBottom: 5 }}>日期</div><input className="inp" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <button className="btn" disabled={!ok} onClick={submit} style={{ width: "100%", opacity: ok ? 1 : .5, cursor: ok ? "pointer" : "not-allowed" }}><Plus size={15} />加入</button>
+    </div>
+  );
+}
 function NavBar({ label, onPrev, onNext, onToday }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -318,8 +343,51 @@ export default function App() {
   const [mvMode, setMvMode] = useState("ex");
   const [ooMonth, setOoMonth] = useState("all");
   const [cardYM, setCardYM] = useState(ymOf(now.getFullYear(), now.getMonth() + 1));
-  const [scene, setScene] = useState("網上");
+  const [openTrip, setOpenTrip] = useState(null);
+  const [scene, setScene] = useState("網上(港幣)");
   const setCardSpend = (cardId, val) => { const cs = { ...(data.cardSpend || {}) }; const m = { ...(cs[cardYM] || {}) }; if (!val) delete m[cardId]; else m[cardId] = val; cs[cardYM] = m; persist({ ...data, cardSpend: cs }); };
+  /* ---- 信用卡週期 / 排名 helpers(信用卡頁同旅遊頁共用) ---- */
+  const periodMonthsOf = (c, ym) => {
+    const [cy, cm] = ym.split("-").map(Number);
+    const pr = c.capPeriod || "month";
+    if (pr === "year") return Array.from({ length: 12 }, (_, i) => ymOf(cy, i + 1));
+    if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return [0, 1, 2].map((i) => ymOf(cy, q0 + i)); }
+    if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; const out = []; for (let m = Math.min(a, b); m <= Math.max(a, b); m++) out.push(ymOf(cy, m)); return out; }
+    return [ym];
+  };
+  const spendOf = (cid, months) => months.reduce((s, ym) => s + numify(((data.cardSpend || {})[ym] || {})[cid]), 0);
+  const periodSpendOf = (c, ym) => {
+    const months = periodMonthsOf(c, ym);
+    let total = spendOf(c.id, months);
+    (c.sumFrom || []).forEach((nm) => { const o = (data.cards || []).find((x) => x.name === nm); if (o) total += spendOf(o.id, months); });
+    return total;
+  };
+  const prLabelOf = (c, ym) => {
+    const [cy, cm] = ym.split("-").map(Number);
+    const pr = c.capPeriod || "month";
+    if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; return `${Math.min(a, b)}-${Math.max(a, b)}月階段`; }
+    if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return `${q0}-${q0 + 2}月季`; }
+    if (pr === "year") return `${cy}全年`;
+    return `${cm}月`;
+  };
+  const rankCards = (sc, ym) => {
+    const isFx = FX_SCENES.includes(sc);
+    return (data.cards || []).filter((c) => (c.scenes || []).includes(sc)).map((c) => {
+      const per = numify(c.per) || 1, ppu = numify(c.points);
+      const mr = numify(c.mileRate) > 0 ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0);
+      const gross = (ppu / per) * (PT_VALUE[c.unit] ?? 0) * 100;
+      const fee = isFx ? numify(c.fxFee ?? 1.95) : 0;
+      const miles = ppu * mr;
+      const costPerMile = miles > 0 ? (per * (1 + fee / 100)) / miles : Infinity;
+      const cap = numify(c.cap) > 0 ? numify(c.cap) : null;
+      const pS = periodSpendOf(c, ym);
+      const full = cap != null && c.capType === "spend" && pS >= cap;
+      const leftAmt = cap != null && c.capType === "spend" ? Math.max(0, cap - pS) : null;
+      const minS = numify(c.minSpend) > 0 ? numify(c.minSpend) : null;
+      const locked = minS != null && pS < minS;
+      return { c, gross, fee, full, leftAmt, costPerMile, locked, needMore: locked ? minS - pS : 0, label: prLabelOf(c, ym) };
+    }).sort((a, b) => { const rank = (r) => (r.full ? 2 : r.locked ? 1 : 0); return rank(a) - rank(b) || a.costPerMile - b.costPerMile; });
+  };
   const addPresetCards = () => { const have = new Set((data.cards || []).map((c) => c.name)); const add = CARD_PRESETS.filter((p) => !have.has(p.name)).map((p) => ({ ...p, id: uid() })); if (!add.length) { window.alert("這些卡已經加過了。"); return; } persist({ ...data, cards: [...(data.cards || []), ...add] }); };
   const fileRef = useRef(null);
 
@@ -336,7 +404,7 @@ export default function App() {
         const snap = await getDoc(doc(fbDb, "users", user.uid));
         if (snap.exists() && snap.data().json) {
           const o = JSON.parse(snap.data().json);
-          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: migrateCards(o.cards), cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} });
+          setData({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: migrateCards(o.cards), trips: o.trips || [], cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} });
         } else { setData(EMPTY); }
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -380,6 +448,28 @@ export default function App() {
   const rates = data.settings.rates;
   const tb = (amt, c) => numify(amt) * (rates[c] || 1) / (rates[base] || 1);
   const bMoney = (n) => `${base} ${fmt(n)}`;
+
+  /* ---- 旅遊 ---- */
+  const tripTotals = (tr) => {
+    const items = tr.items || [];
+    const byCur = {};
+    let baseTotal = 0;
+    items.forEach((it) => { const cu = it.currency || tr.currency; const a = numify(it.amount); byCur[cu] = (byCur[cu] || 0) + a; baseTotal += tb(a, cu); });
+    const ppl = Math.max(1, parseInt(tr.people, 10) || 1);
+    return { items, byCur, baseTotal, ppl, share: baseTotal / ppl };
+  };
+  const addTripItem = (tripId, it) => { const trips = (data.trips || []).map((t) => (t.id === tripId ? { ...t, items: [...(t.items || []), { ...it, id: uid() }] } : t)); persist({ ...data, trips }); };
+  const delTripItem = (tripId, itemId) => { const trips = (data.trips || []).map((t) => (t.id === tripId ? { ...t, items: (t.items || []).filter((x) => x.id !== itemId) } : t)); persist({ ...data, trips }); };
+  const tripToOneoff = (tr, mode) => {
+    const { baseTotal, share, ppl } = tripTotals(tr);
+    const amt = mode === "share" ? share : baseTotal;
+    if (!(amt > 0)) { window.alert("這個旅程還沒有記錄任何支出。"); return; }
+    const label = mode === "share" ? `${tr.name}(${ppl}人平分 · 我嗰份)` : `${tr.name}(全數)`;
+    if (!window.confirm(`把「${label}」${base} ${fmt(round2(amt))} 加入「臨時」支出?`)) return;
+    const oo = { id: uid(), name: label, category: "旅遊", currency: base, amount: round2(amt), date: tr.end || todayISO(), account: tr.account || "", note: `${tr.place || ""} ${tr.start || ""}~${tr.end || ""}`.trim() };
+    persist({ ...data, oneoffs: [...(data.oneoffs || []), oo], trips: (data.trips || []).map((t) => (t.id === tr.id ? { ...t, posted: true, postedAmount: round2(amt) } : t)) });
+    setTab("oneoffs");
+  };
   const acctNames = (data.accounts && data.accounts.length ? data.accounts.map((a) => a.name).filter(Boolean) : DEFAULT_ACCT_NAMES);
   const totalAssets = (data.accounts || []).reduce((s, a) => s + tb(a.balance, a.currency), 0);
   const totalDiff = (data.accounts || []).reduce((s, a) => s + (a.baseline != null ? tb(numify(a.balance) - numify(a.baseline), a.currency) : 0), 0);
@@ -435,10 +525,11 @@ export default function App() {
     oneoff: { name: "", category: "", currency: "MOP", amount: "", date: todayISO(), account: "", note: "" },
     account: { name: "", type: "bank", currency: "HKD", balance: "", note: "" },
     transfer: { name: "", from: "", to: "", currency: "HKD", amount: "", date: todayISO(), note: "" },
+    trip: { name: "", place: "", currency: "JPY", start: todayISO(), end: todayISO(), people: "2", scene: "海外外幣", account: "", note: "", items: [] },
     card: { name: "", currency: "HKD", per: "250", points: "1", unit: "獎賞錢", capType: "spend", capPeriod: "month", capFrom: "1", capTo: "3", minSpend: "", cap: "", scenes: [], mileRate: "", fxFee: "1.95", note: "" },
   };
-  const titles = { property: "物業", insurance: "保險", debt: "負債", income: "收入來源", subscription: "固定費 / 訂閱", living: "生活費", oneoff: "臨時支出", account: "帳戶 / 資產", transfer: "轉賬 / 提現 / 存入", card: "信用卡" };
-  const collOf = { property: "properties", insurance: "insurances", debt: "debts", income: "incomes", subscription: "subscriptions", living: "living", oneoff: "oneoffs", account: "accounts", transfer: "transfers", card: "cards" };
+  const titles = { property: "物業", insurance: "保險", debt: "負債", income: "收入來源", subscription: "固定費 / 訂閱", living: "生活費", oneoff: "臨時支出", account: "帳戶 / 資產", transfer: "轉賬 / 提現 / 存入", card: "信用卡", trip: "旅遊" };
+  const collOf = { property: "properties", insurance: "insurances", debt: "debts", income: "incomes", subscription: "subscriptions", living: "living", oneoff: "oneoffs", account: "accounts", transfer: "transfers", card: "cards", trip: "trips" };
 
   const openAdd = (t) => { setForm(JSON.parse(JSON.stringify(defaults[t]))); setModal({ type: t }); };
   const openEdit = (t, item) => { setForm({ ...JSON.parse(JSON.stringify(defaults[t])), ...JSON.parse(JSON.stringify(item)) }); setModal({ type: t, id: item.id }); };
@@ -459,7 +550,8 @@ export default function App() {
     (modal.type === "oneoff" && !!form.name?.trim() && numify(form.amount) > 0 && !!form.date) ||
     (modal.type === "account" && !!form.name?.trim()) ||
     (modal.type === "transfer" && !!form.from && !!form.to && form.from !== form.to && numify(form.amount) > 0) ||
-    (modal.type === "card" && !!form.name?.trim() && numify(form.per) > 0 && numify(form.points) > 0)
+    (modal.type === "card" && !!form.name?.trim() && numify(form.per) > 0 && numify(form.points) > 0) ||
+    (modal.type === "trip" && !!form.name?.trim() && numify(form.people) > 0)
   );
   const submit = () => {
     if (!canSubmit) return;
@@ -479,6 +571,7 @@ export default function App() {
     if (t === "debt") { rec.balance = numify(form.balance); rec.monthly = numify(form.monthly); }
     if (t === "income" || t === "subscription" || t === "living" || t === "oneoff") rec.amount = numify(form.amount);
     if (t === "account") { rec.balance = numify(form.balance); rec.baseline = (form.baseline == null || form.baseline === "") ? rec.balance : numify(form.baseline); }
+    if (t === "trip") { rec.people = Math.max(1, parseInt(form.people, 10) || 1); rec.items = (form.items || []).map((it) => ({ ...it, amount: numify(it.amount) })); }
     if (t === "card") { const opt = (v) => (v === "" || v == null ? "" : numify(v)); rec.per = numify(form.per) || 1; rec.points = numify(form.points) || 0; rec.cap = opt(form.cap); rec.capPeriod = form.capPeriod || "month"; rec.capFrom = parseInt(form.capFrom, 10) || 1; rec.capTo = parseInt(form.capTo, 10) || 12; rec.minSpend = opt(form.minSpend); rec.scenes = form.scenes || []; rec.mileRate = opt(form.mileRate); rec.fxFee = form.fxFee === "" || form.fxFee == null ? 1.95 : numify(form.fxFee); }
     if (t === "transfer") {
       rec.amount = numify(form.amount);
@@ -543,7 +636,7 @@ export default function App() {
   const setForecast = (cat, v) => persist({ ...data, forecasts: { ...data.forecasts, [fcYear]: { ...(data.forecasts[fcYear] || {}), [cat]: parseFloat(v) || 0 } } });
 
   const exportData = () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `財務備份_${todayISO()}.json`; a.click(); URL.revokeObjectURL(url); };
-  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: migrateCards(o.cards), cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
+  const importData = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const o = JSON.parse(reader.result); persist({ ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards: migrateCards(o.cards), trips: o.trips || [], cardSpend: o.cardSpend || {}, payments: o.payments || {}, forecasts: o.forecasts || {} }); } catch { window.alert("檔案格式不正確"); } }; reader.readAsText(file); e.target.value = ""; };
 
   const TABS = [
     { key: "overview", label: "總覽", icon: LayoutGrid },
@@ -558,6 +651,7 @@ export default function App() {
     { key: "oneoff", label: "臨時", icon: Receipt },
     { key: "assets", label: "資產", icon: Landmark },
     { key: "cards", label: "信用卡", icon: CreditCard },
+    { key: "trips", label: "旅遊", icon: Plane },
   ];
 
   const css = `
@@ -1433,28 +1527,9 @@ export default function App() {
             const [cy, cm] = cardYM.split("-").map(Number);
             const shift = (d) => { let y = cy, m = cm + d; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } setCardYM(ymOf(y, m)); };
             const spendMap = (data.cardSpend || {})[cardYM] || {};
-            const periodMonths = (c) => {
-              const pr = c.capPeriod || "month";
-              if (pr === "year") return Array.from({ length: 12 }, (_, i) => ymOf(cy, i + 1));
-              if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return [0, 1, 2].map((i) => ymOf(cy, q0 + i)); }
-              if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; const out = []; for (let m = Math.min(a, b); m <= Math.max(a, b); m++) out.push(ymOf(cy, m)); return out; }
-              return [cardYM];
-            };
-            const inPeriod = (c) => periodMonths(c).includes(cardYM);
-            const spendOf = (cid, months) => months.reduce((s, ym) => s + numify(((data.cardSpend || {})[ym] || {})[cid]), 0);
-            const periodSpend = (c) => {
-              const months = periodMonths(c);
-              let total = spendOf(c.id, months);
-              (c.sumFrom || []).forEach((nm) => { const o = (data.cards || []).find((x) => x.name === nm); if (o) total += spendOf(o.id, months); });
-              return total;
-            };
-            const prLabel = (c) => {
-              const pr = c.capPeriod || "month";
-              if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; return `${Math.min(a, b)}-${Math.max(a, b)}月階段`; }
-              if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return `${q0}-${q0 + 2}月季`; }
-              if (pr === "year") return `${cy}全年`;
-              return `${cm}月`;
-            };
+            const periodMonths = (c) => periodMonthsOf(c, cardYM);
+            const periodSpend = (c) => periodSpendOf(c, cardYM);
+            const prLabel = (c) => prLabelOf(c, cardYM);
             return (
               <div>
                 <div className="card" style={{ padding: 20, marginBottom: 16 }}>
@@ -1467,22 +1542,7 @@ export default function App() {
                   </div>
                   {(() => {
                     const isFx = FX_SCENES.includes(scene);
-                    const ranked = data.cards.filter((c) => (c.scenes || []).includes(scene)).map((c) => {
-                      const per = numify(c.per) || 1, ppu = numify(c.points);
-                      const mr = numify(c.mileRate) > 0 ? numify(c.mileRate) : (MILE_RATE[c.unit] ?? 0);
-                      const pv = PT_VALUE[c.unit] ?? 0;
-                      const gross = (ppu / per) * pv * 100;
-                      const fee = isFx ? numify(c.fxFee ?? 1.95) : 0;
-                      const miles = ppu * mr;
-                      const costPerMile = miles > 0 ? (per * (1 + fee / 100)) / miles : Infinity;
-                      const cap = numify(c.cap) > 0 ? numify(c.cap) : null;
-                      const pS = periodSpend(c);
-                      const full = cap != null && c.capType === "spend" && pS >= cap;
-                      const leftAmt = cap != null && c.capType === "spend" ? Math.max(0, cap - pS) : null;
-                      const minS = numify(c.minSpend) > 0 ? numify(c.minSpend) : null;
-                      const locked = minS != null && pS < minS;
-                      return { c, gross, net: gross - fee, fee, full, leftAmt, costPerMile, locked, needMore: locked ? minS - pS : 0, label: prLabel(c) };
-                    }).sort((a, b) => { const rank = (r) => (r.full ? 2 : r.locked ? 1 : 0); return rank(a) - rank(b) || a.costPerMile - b.costPerMile; });
+                    const ranked = rankCards(scene, cardYM);
                     if (!ranked.length) return <div style={{ fontFamily: T.sans, fontSize: 13, color: T.muted }}>沒有卡標示適用於「{scene}」。編輯卡片時可以剔選適用場景。</div>;
                     return (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1586,6 +1646,92 @@ export default function App() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {tab === "trips" && (
+        <div>
+          <SectionHeader title="旅遊" count={(data.trips || []).length} onAdd={() => openAdd("trip")} addLabel="新增旅程" />
+          <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>旅程期間逐筆記低使咗幾多,行完可以按人頭平分,一次過加入「臨時」支出。下面亦會話你知呢個旅程用邊張卡最抵。</div>
+
+          {(data.trips || []).length === 0 ? <EmptyState icon={Plane} title="還沒有旅程" desc="例如:大阪 5天4夜。記低每筆使費,行完一次過入賬。" cta="新增旅程" onCta={() => openAdd("trip")} /> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {data.trips.map((tr) => {
+                const { items, byCur, baseTotal, ppl, share } = tripTotals(tr);
+                const on = openTrip === tr.id;
+                return (
+                  <div key={tr.id} className="card rise" style={{ padding: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: T.serif, fontSize: 17, fontWeight: 600, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                          <Plane size={15} color={T.brass} />{tr.name}
+                          {tr.posted && <Badge color={T.pos} bg={T.forestSoft}>已入賬</Badge>}
+                        </div>
+                        <div style={{ marginTop: 5, fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>{[tr.place, (tr.start || "") + (tr.end ? " ~ " + tr.end : ""), `${ppl} 人`].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 2, flexShrink: 0 }}><IconBtn title="編輯" onClick={() => openEdit("trip", tr)}><Pencil size={14} /></IconBtn><IconBtn title="刪除" danger onClick={() => remove("trip", tr.id)}><Trash2 size={14} /></IconBtn></div>
+                    </div>
+
+                    <div style={{ marginTop: 14, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))" }}>
+                      <div style={{ background: T.surfaceAlt, borderRadius: 12, padding: "11px 13px" }}><div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, fontWeight: 600 }}>總共使咗</div><div style={{ fontFamily: T.serif, fontSize: 19, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{bMoney(baseTotal)}</div><div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>{Object.keys(byCur).length ? Object.entries(byCur).map(([c, v]) => `${c} ${fmt(v)}`).join(" · ") : "未有記錄"}</div></div>
+                      <div style={{ background: T.brassSoft + "55", borderRadius: 12, padding: "11px 13px" }}><div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}><Users size={12} />每人平分</div><div style={{ fontFamily: T.serif, fontSize: 19, fontWeight: 600, color: T.brass, fontVariantNumeric: "tabular-nums" }}>{bMoney(share)}</div><div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>{fmt(baseTotal)} ÷ {ppl} 人</div></div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                      <button className="btn-ghost" onClick={() => setOpenTrip(on ? null : tr.id)}>{on ? "收起" : `記賬 / 明細 (${items.length})`}</button>
+                      <button className="btn-ghost" onClick={() => tripToOneoff(tr, "share")}><Receipt size={14} />加入臨時(我嗰份)</button>
+                      <button className="btn-ghost" onClick={() => tripToOneoff(tr, "all")}>加入臨時(全數)</button>
+                    </div>
+
+                    {on && (
+                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.line}` }}>
+                        <TripItemAdd tr={tr} onAdd={(it) => addTripItem(tr.id, it)} />
+                        {items.length > 0 && (
+                          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {items.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map((it) => (
+                              <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 10, background: T.surfaceAlt }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label || "(未命名)"}</div>
+                                  <div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>{[it.date, it.cat].filter(Boolean).join(" · ")}</div>
+                                </div>
+                                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                  <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{it.currency} {fmt(it.amount)}</div>
+                                  {(it.currency || tr.currency) !== base && <div style={{ fontFamily: T.sans, fontSize: 10, color: T.muted }}>≈ {bMoney(tb(it.amount, it.currency || tr.currency))}</div>}
+                                </div>
+                                <IconBtn title="刪除" danger onClick={() => delTripItem(tr.id, it.id)}><Trash2 size={13} /></IconBtn>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.line}` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}><Target size={15} color={T.brass} /><div style={{ fontFamily: T.serif, fontSize: 15, fontWeight: 600 }}>呢個旅程用邊張卡最抵({tr.scene || "海外外幣"})</div></div>
+                          {(() => {
+                            const ranked = rankCards(tr.scene || "海外外幣", ymOf(now.getFullYear(), now.getMonth() + 1)).slice(0, 3);
+                            if (!ranked.length) return <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>未有卡標示適用於「{tr.scene}」。</div>;
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {ranked.map((r, i) => (
+                                  <div key={r.c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 10, background: i === 0 && !r.full && !r.locked ? T.forestSoft : T.surfaceAlt, opacity: r.full ? .55 : 1 }}>
+                                    <div style={{ width: 19, height: 19, borderRadius: "50%", background: i === 0 && !r.full && !r.locked ? T.forest : T.line, color: i === 0 && !r.full && !r.locked ? T.brassSoft : T.muted, display: "grid", placeItems: "center", fontFamily: T.sans, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontFamily: T.sans, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.c.name}</div>
+                                      <div style={{ fontFamily: T.sans, fontSize: 10, color: r.full ? T.neg : r.locked ? T.brass : T.muted }}>{r.full ? `已用完${r.label}上限` : r.locked ? `⚠ 要再簽 ${cur(r.needMore, r.c.currency)} 先解鎖` : r.leftAmt != null ? `${r.label}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}</div>
+                                    </div>
+                                    <div style={{ fontFamily: T.serif, fontSize: 15, fontWeight: 600, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{isFinite(r.costPerMile) ? `$${r.costPerMile.toFixed(2)}` : "—"}<span style={{ fontFamily: T.sans, fontSize: 9, color: T.muted }}>/里</span></div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1771,6 +1917,23 @@ export default function App() {
               <Field label="備註" hint="例如:股票提現、轉去澳門"><input className="inp" placeholder="(選填)" value={form.note} onChange={(e) => setF("note", e.target.value)} /></Field>
             </div>
             <div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>轉賬只是把錢從一個帳戶搬到另一個,不會被當成收入或支出。系統會自動把兩邊帳戶的餘額加減好(跨幣別用目前匯率換算);股票市值有變動時,直接編輯該帳戶的餘額即可。</div>
+          </>)}
+
+          {modal.type === "trip" && (<>
+            <Field label="旅程名稱" hint="例如:大阪 5天4夜"><input className="inp" placeholder="大阪 5天4夜" value={form.name} onChange={(e) => setF("name", e.target.value)} /></Field>
+            <div className="fgrid2">
+              <Field label="地點"><input className="inp" placeholder="日本 大阪" value={form.place} onChange={(e) => setF("place", e.target.value)} /></Field>
+              <Field label="當地貨幣" hint="加使費時預設用呢個"><CurSelect value={form.currency} onChange={(v) => setF("currency", v)} /></Field>
+            </div>
+            <div className="fgrid2">
+              <Field label="出發日期"><input className="inp" type="date" value={form.start} onChange={(e) => setF("start", e.target.value)} /></Field>
+              <Field label="回程日期" hint="加入臨時時會用呢個日期"><input className="inp" type="date" value={form.end} onChange={(e) => setF("end", e.target.value)} /></Field>
+            </div>
+            <div className="fgrid2">
+              <Field label="幾多人" hint="用嚟按人頭平分"><input className="inp" type="number" inputMode="numeric" min="1" placeholder="2" value={form.people} onChange={(e) => setF("people", e.target.value)} /></Field>
+              <Field label="主要簽賬場景" hint="用嚟推薦信用卡"><select className="sel" value={form.scene} onChange={(e) => setF("scene", e.target.value)}>{SCENES.map((sc) => <option key={sc} value={sc}>{sc}</option>)}</select></Field>
+            </div>
+            <Field label="從哪個帳戶付" hint="加入臨時時會用呢個帳戶"><input className="inp" list="acctSuggest" placeholder="(選填)" value={form.account} onChange={(e) => setF("account", e.target.value)} /></Field>
           </>)}
 
           {modal.type === "card" && (<>
