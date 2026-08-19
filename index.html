@@ -93,10 +93,10 @@ const CARD_PRESETS = [
     note: "網上簽賬(含海外網購)每月首$10,000有4%(HK$2.5/里);指定商戶(壽司郎/GU/Decathlon等)每曆月首$1,250有8%。其餘0.4%。網上繳費、保費、電子錢包增值不計。Red不參加最紅自主獎賞及Travel Guru。" },
   { name: "HSBC Visa Signature", currency: "HKD", unit: "獎賞錢", mileRate: 10, stmtDay: 20, fxFee: 1.95, capType: "spend", capPeriod: "year", cap: 100000, capName: "自主", guru: true,
     lanes: [
-      { t: "賞世界·海外實體店(+GURU 6%)=9.6%", scene: "海外外幣", rate: 9.6, fx: true, useCap: "自主", guru: true },
-      { t: "賞世界·澳門實體店(+GURU 6%)=9.6%", scene: "澳門", rate: 9.6, fx: true, useCap: "自主", guru: true },
-      { t: "賞世界·中國實體店(+GURU 6%)=9.6%", scene: "中國內地", rate: 9.6, fx: true, useCap: "自主", guru: true },
-      { t: "賞世界·海外網購 3.6%", scene: "海外網購", rate: 3.6, fx: true, useCap: "自主" },
+      { t: "賞世界·海外實體店(+GURU 6%)=9.6%", scene: "海外外幣", rate: 9.6, fx: true, useCap: "自主", guru: true, layers: [{ rate: 3.6, cap: "自主" }, { rate: 6, cap: "GURU" }] },
+      { t: "賞世界·澳門實體店(+GURU 6%)=9.6%", scene: "澳門", rate: 9.6, fx: true, useCap: "自主", guru: true, layers: [{ rate: 3.6, cap: "自主" }, { rate: 6, cap: "GURU" }] },
+      { t: "賞世界·中國實體店(+GURU 6%)=9.6%", scene: "中國內地", rate: 9.6, fx: true, useCap: "自主", guru: true, layers: [{ rate: 3.6, cap: "自主" }, { rate: 6, cap: "GURU" }] },
+      { t: "賞世界·海外網購 3.6%", scene: "海外網購", rate: 3.6, fx: true, useCap: "自主", layers: [{ rate: 3.6, cap: "自主" }] },
       { t: "其他四大類別 1.6%", scene: "本地HK", rate: 1.6, fx: false, useCap: "自主" },
       { t: "四大類別(指定商戶)1.6%", scene: "指定商戶", rate: 1.6, fx: false, useCap: "自主" },
       { t: "唔中類別 / 電子錢包 0.4%", scene: "網上(港幣)", rate: 0.4, fx: false },
@@ -104,10 +104,10 @@ const CARD_PRESETS = [
     note: "你已All-in「賞世界」:海外/中國/澳門外幣=3.6%(9X);海外實體店再疊Travel Guru GURU 6%=9.6%。其餘四大類別(賞滋味/賞家居/賞購物/賞享受)各1.6%;唔中類別或電子錢包只有0.4%。自主5X+VS專屬3X共用【每年首$100,000】。類別按商戶MCC判定(外賣App/Apple門市未必中)。" },
   { name: "HSBC EveryMile", currency: "HKD", unit: "獎賞錢", mileRate: 20, stmtDay: 28, fxFee: 1.95, capType: "none", cap: "", guru: true,
     lanes: [
-      { t: "海外實體店(海外1.5%+GURU 6%)=8.5%", scene: "海外外幣", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000 },
-      { t: "澳門實體店 8.5%", scene: "澳門", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000 },
-      { t: "中國實體店 8.5%", scene: "中國內地", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000 },
-      { t: "海外網購(海外1.5%)=2.5%", scene: "海外網購", rate: 2.5, fx: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000 },
+      { t: "海外實體店(海外1.5%+GURU 6%)=8.5%", scene: "海外外幣", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }, { rate: 6, cap: "GURU" }] },
+      { t: "澳門實體店 8.5%", scene: "澳門", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }, { rate: 6, cap: "GURU" }] },
+      { t: "中國實體店 8.5%", scene: "中國內地", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }, { rate: 6, cap: "GURU" }] },
+      { t: "海外網購(海外1.5%)=2.5%", scene: "海外網購", rate: 2.5, fx: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }] },
       { t: "指定日常/旅遊商戶 2.5%", scene: "指定商戶", rate: 2.5, fx: false },
       { t: "本地 / 一般 1%", scene: "本地HK", rate: 1, fx: false },
     ],
@@ -484,14 +484,14 @@ export default function App() {
     (c.sumFrom || []).forEach((nm) => { const o = (data.cards || []).find((x) => x.name === nm); if (o) total += spendOf(o.id, months); });
     return total;
   };
-  /* 帳單週期:結單日 stmtDay。顯示緊 ym 個月,週期 = 該月 stmtDay 至下月 stmtDay-1 */
+  /* 帳單週期:結單日 stmtDay。顯示緊 ym 個月 = 喺該月出單嗰張單 = 上月 stmtDay 至 本月 (stmtDay-1) */
   const stmtRange = (c, ym) => {
     const [y, m] = ym.split("-").map(Number);
     const d = Math.min(28, Math.max(1, parseInt(c.stmtDay, 10) || 1));
-    const start = `${ymOf(y, m)}-${String(d).padStart(2, "0")}`;
-    const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
-    const endD = new Date(ny, nm - 1, d); endD.setDate(endD.getDate() - 1);
-    const end = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, "0")}-${String(endD.getDate()).padStart(2, "0")}`;
+    if (d === 1) return { start: `${ym}-01`, end: `${ym}-31` };
+    const end = `${ymOf(y, m)}-${String(d - 1).padStart(2, "0")}`;
+    const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+    const start = `${ymOf(py, pm)}-${String(d).padStart(2, "0")}`;
     return { start, end };
   };
   const cycleTxns = (c, ym) => { const { start, end } = stmtRange(c, ym); return (data.cardTxns || []).filter((t) => t.cardId === c.id && (t.date || "") >= start && (t.date || "") <= end); };
@@ -517,23 +517,39 @@ export default function App() {
     const per = numify(card.per) || 1, ppu = numify(card.points); return Math.floor(amtBase / per) * ppu;
   };
   const cardMR = (card) => (numify(card.mileRate) > 0 ? numify(card.mileRate) : (MILE_RATE[card.unit] ?? 0));
+  const guruUsed = (ym) => {
+    const tr = (data.cards || []).find((x) => x.tracker); if (!tr) return { used: 0, cap: Infinity };
+    const months = periodMonthsOf(tr, ym); const gs = tr.guruScenes || [];
+    const used = (data.cardTxns || []).reduce((s, t) => { const cc = (data.cards || []).find((x) => x.id === t.cardId); if (!cc || !cc.guru) return s; const l = laneByT(cc, t.laneT); if (l && l.guru && gs.includes(l.scene) && months.includes((t.date || "").slice(0, 7))) return s + txnBase(t); return s; }, 0);
+    return { used, cap: numify(tr.cap) || Infinity };
+  };
+  const laneCapUsed = (card, capName, capPeriod, ym) => { const lc = { capPeriod: capPeriod || "custom", capFrom: card.capFrom, capTo: card.capTo, capStart: card.capStart }; const months = periodMonthsOf(lc, ym); return (data.cardTxns || []).reduce((s, t) => { if (t.cardId !== card.id) return s; if (!months.includes((t.date || "").slice(0, 7))) return s; const l = laneByT(card, t.laneT); return (l && l.capName === capName) ? s + txnBase(t) : s; }, 0); };
+  const laneEffRate = (card, lane, ym) => {
+    if (!lane.layers) return numify(lane.rate);
+    let r = 0;
+    for (const L of lane.layers) {
+      if (L.cap === "GURU") { const g = guruUsed(ym); if (g.used >= g.cap) continue; r += L.rate; }
+      else if (L.cap === "自主") { const used = periodSpendOf(card, ym); if (numify(card.cap) > 0 && used >= numify(card.cap)) continue; r += L.rate; }
+      else if (L.capName) { const used = laneCapUsed(card, L.capName, L.capPeriod, ym); if (numify(L.minSpend) > 0 && used < numify(L.minSpend)) continue; if (numify(L.capSpend) > 0 && used >= numify(L.capSpend)) continue; r += L.rate; }
+      else r += L.rate;
+    }
+    return r;
+  };
   const rankCards = (sc, ym) => {
     return (data.cards || []).map((c) => {
+      if (c.tracker) return null;
       const lane = c.lanes ? laneByScene(c, sc) : ((c.scenes || []).includes(sc) ? { rate: null } : null);
       if (!lane) return null;
       const mr = cardMR(c);
-      let rate, miles, per;
-      if (c.lanes) { rate = numify(lane.rate); miles = rate / 100 * mr; per = 1; }
-      else { per = numify(c.per) || 1; const ppu = numify(c.points); rate = (ppu / per) * (PT_VALUE[c.unit] ?? 0) * 100; miles = ppu * mr / per; }
+      let rate, miles;
+      if (c.lanes) { rate = laneEffRate(c, lane, ym); miles = rate / 100 * mr; }
+      else { const per = numify(c.per) || 1; const ppu = numify(c.points); rate = (ppu / per) * (PT_VALUE[c.unit] ?? 0) * 100; miles = ppu * mr / per; }
       const fee = lane.fx || (!c.lanes && FX_SCENES.includes(sc)) ? numify(c.fxFee ?? 1.95) : 0;
       const costPerMile = miles > 0 ? (1 + fee / 100) / miles : Infinity;
-      // cap / unlock 以 lane 或卡計
       let full = false, leftAmt = null, locked = false, needMore = 0, label = prLabelOf(c, ym);
       if (c.lanes && lane.capName && numify(lane.capSpend) > 0) {
-        const lc = { capPeriod: lane.capPeriod || "month", capFrom: c.capFrom, capTo: c.capTo, capStart: c.capStart };
-        const months = periodMonthsOf(lc, ym);
-        const used = spendOf(c.id, months);
-        full = used >= numify(lane.capSpend); leftAmt = Math.max(0, numify(lane.capSpend) - used); label = prLabelOf(lc, ym);
+        const used = laneCapUsed(c, lane.capName, lane.capPeriod, ym);
+        leftAmt = Math.max(0, numify(lane.capSpend) - used);
         if (numify(lane.minSpend) > 0 && used < numify(lane.minSpend)) { locked = true; needMore = numify(lane.minSpend) - used; }
       } else if (c.lanes && lane.useCap && numify(c.cap) > 0) {
         const used = periodSpendOf(c, ym); full = used >= numify(c.cap); leftAmt = Math.max(0, numify(c.cap) - used);
@@ -541,7 +557,7 @@ export default function App() {
         const used = periodSpendOf(c, ym); full = used >= numify(c.cap); leftAmt = Math.max(0, numify(c.cap) - used);
       }
       return { c, gross: rate, fee, full, leftAmt, costPerMile, locked, needMore, label };
-    }).filter(Boolean).sort((a, b) => { const rank = (r) => (r.full ? 2 : r.locked ? 1 : 0); return rank(a) - rank(b) || a.costPerMile - b.costPerMile; });
+    }).filter(Boolean).sort((a, b) => { const rank = (r) => (r.full ? 1 : 0); return rank(a) - rank(b) || a.costPerMile - b.costPerMile; });
   };
   const setGuruReset = (ym) => {
     if (!window.confirm(`把 GURU 6% 上限改為由 ${ym.split("-")[0]}年${+ym.split("-")[1]}月 重新計一年?之前月份嘅海外簽賬將唔再計入呢個上限。`)) return;
