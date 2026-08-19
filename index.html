@@ -115,7 +115,7 @@ const CARD_PRESETS = [
   { name: "★GURU 進度 · 海外實體店 $2,200", currency: "HKD", unit: "獎賞錢", mileRate: 10, stmtDay: 1, fxFee: 0, capType: "spend", capPeriod: "custom", capStart: "2026-05", cap: 36667, capName: "GURU", tracker: true, guruScenes: ["海外外幣", "澳門", "中國內地"],
     scenes: [], note: "【只用嚟追蹤,唔使自己入數】自動夾晒 VS + EveryMile 嘅海外/澳門/中國【實體店】簽賬,睇住 GURU 6% 嗰 $2,200 獎賞錢(約簽$36,667)幾時爆。你會籍年度5月起。用完要續級,喺下面撳掣改開始月。" },
   { name: "AMEX Platinum · 本地港幣簽賬 2分", currency: "HKD", per: 1, points: 2, unit: "分", mileRate: 1/18, capType: "spend", capPeriod: "year", cap: "", scenes: ["本地HK", "網上(港幣)"], fxFee: 1.95, stmtDay: 18, note: "基本1分+加倍加賞1分=每HK$1得2分(HK$9/里)。⚠加倍加賞1分嘅$160,000額度係港幣+外幣共用,見「加倍加賞額度」那張。18分=1里。" },
-  { name: "AMEX Platinum · 加倍加賞額度(港幣+外幣合計)", currency: "HKD", per: 1, points: 1, unit: "分", mileRate: 1/18, capType: "spend", capPeriod: "year", cap: 160000, scenes: [], fxFee: 0, stmtDay: 18, sumFrom: ["AMEX Platinum · 本地港幣簽賬 2分", "AMEX Platinum · 外幣簽賬 9X(需登記)", "AMEX Platinum · 指定旅遊商戶 9X(需登記)", "AMEX Platinum · 指定日常商戶 9X(需登記)"], note: "⚠只追蹤額度。加倍加賞每個計劃年度首HK$160,000(港幣+外幣)每HK$1額外1分。已自動加埋其他AMEX卡。⚠計劃年度非1-12月,可改「自訂階段」。主卡+附屬卡合併。" },
+  { name: "AMEX Platinum · 加倍加賞額度(港幣+外幣合計)", currency: "HKD", per: 1, points: 1, unit: "分", mileRate: 1/18, capType: "spend", capPeriod: "year", cap: 160000, scenes: [], fxFee: 0, stmtDay: 18, tracker: true, sumFrom: ["AMEX Platinum · 本地港幣簽賬 2分", "AMEX Platinum · 外幣簽賬 9X(需登記)", "AMEX Platinum · 指定旅遊商戶 9X(需登記)", "AMEX Platinum · 指定日常商戶 9X(需登記)"], note: "⚠只追蹤額度。加倍加賞每個計劃年度首HK$160,000(港幣+外幣)每HK$1額外1分。已自動加埋其他AMEX卡。⚠計劃年度非1-12月,可改「自訂階段」。主卡+附屬卡合併。" },
   { name: "AMEX Platinum · 外幣簽賬 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", mileRate: 1/18, capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["海外外幣", "澳門", "中國內地", "海外網購"], fxFee: 2, stmtDay: 18, note: "基本3+加倍1+額外5=9分/HK$1(≈HK$2=1里)。⚠2026年7月1日起新一輪要重新登記。每曆年季度(1-3/4-6/7-9/10-12月)首HK$15,000,超出得4分=HK$4.5/里。外幣睇貨幣:澳門MOP、日本JPY都計;港幣結算(DCC)唔計;非美元先轉美元再轉港元。主卡+附屬卡合併。" },
   { name: "AMEX Platinum · 指定旅遊商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", mileRate: 1/18, capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["網上(港幣)", "指定商戶"], fxFee: 2, stmtDay: 18, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。Agoda/Trip.com/Expedia/Booking.com等(必須由平台收錢,到酒店先付=酒店收錢唔計;外幣付走外幣9X)。每曆年季度首HK$15,000。主卡+附屬卡合併。" },
   { name: "AMEX Platinum · 指定日常商戶 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", mileRate: 1/18, capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["本地HK", "指定商戶"], fxFee: 2, stmtDay: 18, note: "港幣簽賬:基本1+加倍1+額外7=9分/HK$1。惠康/百佳/萬寧/屈臣氏/一田等,實體店碌卡一樣計(唔使網上)。每曆年季度首HK$15,000。主卡+附屬卡合併。" },
@@ -203,6 +203,7 @@ const migrateCards = (list) => (list || []).map((c) => {
   let x = c;
   if (x.name === "HSBC EveryMile · 指定/海外 $2=1里") x = { ...x, name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", scenes: ["指定商戶"], fxFee: 0 };
   if (x.name === "AMEX Platinum · 本地簽賬(加倍加賞)") x = { ...x, name: "AMEX Platinum · 本地港幣簽賬 2分", cap: "" };
+  if (x.name === "AMEX Platinum · 加倍加賞額度(港幣+外幣合計)" && !x.tracker) x = { ...x, tracker: true };
   if (x.name === "★GURU EveryMile · 海外實體店(首$15,000)") x = { ...x, name: "★GURU EveryMile · 海外實體店" };
   if (x.name === "★GURU EveryMile · 海外實體店" || x.name === "★GURU Visa Signature · 海外實體店(補底)") {
     if (x.capType === "points" || numify(x.cap) === 15000 || numify(x.cap) === 100000) x = { ...x, capType: "spend", cap: 36667, minSpend: "" };
@@ -1763,9 +1764,17 @@ export default function App() {
                     // 上限行(卡級 + lane級 + tracker)
                     const capRows = [];
                     if (c.tracker && numify(c.cap) > 0) {
-                      const gs = c.guruScenes || []; const months = periodMonthsOf(c, cardYM);
-                      const used = (data.cardTxns || []).reduce((s, t) => { const card = (data.cards || []).find((x) => x.id === t.cardId); if (!card || !card.guru) return s; const l = laneByT(card, t.laneT); if (l && l.guru && gs.includes(l.scene) && months.includes((t.date || "").slice(0, 7))) return s + txnBase(t); return s; }, 0);
-                      capRows.push({ name: "GURU 6% ($2,200)", used, cap: numify(c.cap), label: prLabel(c) });
+                      const months = periodMonthsOf(c, cardYM);
+                      let used = 0, capLabel = "上限";
+                      if ((c.guruScenes || []).length) {
+                        const gs = c.guruScenes; capLabel = "GURU 6% ($2,200)";
+                        used = (data.cardTxns || []).reduce((s, t) => { const card = (data.cards || []).find((x) => x.id === t.cardId); if (!card || !card.guru) return s; const l = laneByT(card, t.laneT); if (l && l.guru && gs.includes(l.scene) && months.includes((t.date || "").slice(0, 7))) return s + txnBase(t); return s; }, 0);
+                      } else {
+                        capLabel = "加倍加賞 $160,000";
+                        used = spendOf(c.id, months);
+                        (c.sumFrom || []).forEach((nm) => { const o = (data.cards || []).find((x) => x.name === nm); if (o) used += spendOf(o.id, months); });
+                      }
+                      capRows.push({ name: capLabel, used, cap: numify(c.cap), label: prLabel(c) });
                     } else if (!c.lanes && numify(c.cap) > 0 && c.capType === "spend") {
                       let used = periodSpend(c);
                       capRows.push({ name: c.capName || "上限", used, cap: numify(c.cap), label: prLabel(c) });
@@ -1817,7 +1826,7 @@ export default function App() {
                         ); })}
 
                         {c.note && <div style={{ marginTop: 10, fontFamily: T.sans, fontSize: 11.5, color: T.inkSoft, lineHeight: 1.5 }}>{c.note}</div>}
-                        {(c.tracker || (c.name || "").startsWith("★GURU")) && (
+                        {((c.tracker && (c.guruScenes || []).length) || (c.name || "").startsWith("★GURU")) && (
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${T.line}` }}>
                             <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginBottom: 6 }}>GURU 週期:<b style={{ color: T.inkSoft }}>{prLabel(c)}</b></div>
                             <button className="btn-ghost" onClick={() => setGuruReset(cardYM)} style={{ fontSize: 12 }}><RotateCcw size={13} />GURU 續咗級 · 由 {cm}月 重新計 $2,200</button>
