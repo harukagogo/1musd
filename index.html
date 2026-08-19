@@ -88,6 +88,8 @@ const CARD_PRESETS = [
   { name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["指定商戶"], fxFee: 0, note: "睇商戶唔睇貨幣(港幣、喺香港簽即可),唔使登記、無上限。四類:①咖啡輕食(星巴克/%Arabica/太平洋/Blue Bottle/Pret/Lady M) ②本地交通(九巴/城巴/新巴/MTR拍卡出入閘/指定的士App) ③跨境交通(香港中國旅行社/冠忠/永東/中國鐵路12306/GO巴) ④旅遊服務(金光飛航/噴射飛航/Klook/KKday/AIRSIM/AVIS/Hertz/租車)。⚠電子錢包、本地超市、保費、證券、租金管理費唔計。海外外幣$2/里請用「海外優惠階段」那張。" },
   { name: "HSBC EveryMile · 一般簽賬 $5=1里", currency: "HKD", per: 5, points: 1, unit: "里", capType: "spend", capPeriod: "month", cap: "", scenes: ["本地HK", "網上(港幣)", "海外外幣", "澳門", "中國內地", "海外網購"], fxFee: 1.95, note: "本地及一般簽賬HK$5=1里(1%)。$1獎賞錢=20里(EveryMile專屬)。" },
   { name: "HSBC EveryMile · 海外優惠階段(需登記)", currency: "HKD", per: 2, points: 1, unit: "里", capType: "spend", capPeriod: "custom", capFrom: 7, capTo: 12, minSpend: 12000, cap: 15000, scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "海外外幣簽賬:基本1%+額外1.5%=2.5%(HK$2=1里)。需先在Reward+登記。每階段要簽滿HK$12,000先解鎖,額外回贈上限$225獎賞錢(即約簽$15,000到頂)。階段月份請按最新推廣期自行修改。" },
+  { name: "★GURU EveryMile · 海外實體店", currency: "HKD", per: 100, points: 8.5, unit: "獎賞錢", mileRate: 20, capType: "spend", capPeriod: "custom", capStart: "2026-05", cap: 36667, sumFrom: ["★GURU Visa Signature · 海外實體店(補底)"], scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "【TravelGuru GURU級 · 只計海外實體店,唔計網購/Agoda】基本1%+海外階段1.5%+GURU額外6%=8.5%(≈$0.59/里)。⚠GURU額外6%上限=$2,200獎賞錢(約簽$36,667),同下面VS【共用】,用完要續級先reset。你會籍年度5月-4月。海外階段另需登記+每階段簽滿$12,000先有嗰1.5%。$1獎賞錢=20里。" },
+  { name: "★GURU Visa Signature · 海外實體店(補底)", currency: "HKD", per: 100, points: 9.6, unit: "獎賞錢", mileRate: 10, capType: "spend", capPeriod: "custom", capStart: "2026-05", cap: 36667, sumFrom: ["★GURU EveryMile · 海外實體店"], scenes: ["海外外幣", "澳門", "中國內地"], fxFee: 1.95, note: "【TravelGuru GURU級 · 只計海外實體店】賞世界3.6%+GURU額外6%=9.6%(≈$1.04/里)。⚠同EveryMile【共用】GURU嗰$2,200獎賞錢(約$36,667)上限,兩張加埋計。EveryMile簽爆先用呢張補。需登記自主(賞世界)+TravelGuru。你會籍年度5月-4月。$1獎賞錢=10里。" },
   { name: "AMEX Platinum · 本地港幣簽賬 2分", currency: "HKD", per: 1, points: 2, unit: "分", capType: "spend", capPeriod: "year", cap: "", scenes: ["本地HK", "網上(港幣)"], fxFee: 2, note: "基本1分+加倍加賞1分=每HK$1得2分(HK$9/里)。⚠冇獨立上限:嗰1分嘅「加倍加賞」額度係港幣+外幣共用一個池,請睇「加倍加賞額度」那張。池用完本地跌返1分=HK$18/里。18分=1里。" },
   { name: "AMEX Platinum · 加倍加賞額度(港幣+外幣合計)", currency: "HKD", per: 1, points: 1, unit: "分", capType: "spend", capPeriod: "year", cap: 160000, scenes: [], fxFee: 0, sumFrom: ["AMEX Platinum · 本地港幣簽賬 2分", "AMEX Platinum · 外幣簽賬 9X(需登記)", "AMEX Platinum · 指定旅遊商戶 9X(需登記)", "AMEX Platinum · 指定日常商戶 9X(需登記)"], note: "⚠這張只用來追蹤額度,唔會出現喺推薦。「加倍加賞」自動參加、唔使登記:每個計劃年度首HK$160,000之【港幣或外幣】簽賬,每HK$1額外送1分。上面已自動加埋其他AMEX卡嘅簽賬,你只需喺下面補返未列出嘅AMEX簽賬(例如附屬卡或其他類別)。爆咗:本地跌2分→1分、外幣9分→8分。⚠「計劃年度」係由你加入計起12個月,未必係1-12月,可改用「自訂階段」。⚠主卡+附屬卡合併計算。" },
   { name: "AMEX Platinum · 外幣簽賬 9X(需登記)", currency: "HKD", per: 1, points: 9, unit: "分", capType: "spend", capPeriod: "quarter", cap: 15000, scenes: ["海外外幣", "澳門", "中國內地", "海外網購"], fxFee: 2, note: "基本3+加倍1+額外5=9分/HK$1(≈HK$2=1里)。⚠2026年7月1日起新一輪要重新登記。每曆年季度(1-3/4-6/7-9/10-12月)首HK$15,000(⚠主卡+附屬卡合併計算,共用額度),超出得4分=HK$4.5/里。外幣睇貨幣唔睇商戶:澳門用MOP、日本酒店到付用JPY都計;港幣結算(DCC)唔計。⚠AMEX外幣手續費2%(HSBC係1.95%),而且非美元交易會先轉美元再轉港元(轉兩次),實際成本可能再高少少。" },
@@ -128,6 +130,11 @@ const migrateCards = (list) => (list || []).map((c) => {
   let x = c;
   if (x.name === "HSBC EveryMile · 指定/海外 $2=1里") x = { ...x, name: "HSBC EveryMile · 指定日常/旅遊 $2=1里", scenes: ["指定商戶"], fxFee: 0 };
   if (x.name === "AMEX Platinum · 本地簽賬(加倍加賞)") x = { ...x, name: "AMEX Platinum · 本地港幣簽賬 2分", cap: "" };
+  if (x.name === "★GURU EveryMile · 海外實體店(首$15,000)") x = { ...x, name: "★GURU EveryMile · 海外實體店" };
+  if (x.name === "★GURU EveryMile · 海外實體店" || x.name === "★GURU Visa Signature · 海外實體店(補底)") {
+    if (x.capType === "points" || numify(x.cap) === 15000 || numify(x.cap) === 100000) x = { ...x, capType: "spend", cap: 36667, minSpend: "" };
+    if (!x.capStart) x = { ...x, capPeriod: "custom", capStart: "2026-05" };
+  }
   const p = CARD_PRESETS.find((q) => q.name === x.name);
   if (p && p.note && x.note !== p.note) x = { ...x, note: p.note };
   if (p && p.fxFee != null && numify(x.fxFee) !== numify(p.fxFee)) x = { ...x, fxFee: p.fxFee };
@@ -352,7 +359,15 @@ export default function App() {
     const pr = c.capPeriod || "month";
     if (pr === "year") return Array.from({ length: 12 }, (_, i) => ymOf(cy, i + 1));
     if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return [0, 1, 2].map((i) => ymOf(cy, q0 + i)); }
-    if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; const out = []; for (let m = Math.min(a, b); m <= Math.max(a, b); m++) out.push(ymOf(cy, m)); return out; }
+    if (pr === "custom") {
+      if (c.capStart && /^\d{4}-\d{2}$/.test(c.capStart)) {
+        const [sy, sm] = c.capStart.split("-").map(Number);
+        const out = [];
+        for (let i = 0; i < 12; i++) { const mm = ((sm - 1 + i) % 12) + 1; const yy = sy + Math.floor((sm - 1 + i) / 12); out.push(ymOf(yy, mm)); }
+        return out;
+      }
+      const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; const out = []; for (let m = Math.min(a, b); m <= Math.max(a, b); m++) out.push(ymOf(cy, m)); return out;
+    }
     return [ym];
   };
   const spendOf = (cid, months) => months.reduce((s, ym) => s + numify(((data.cardSpend || {})[ym] || {})[cid]), 0);
@@ -365,7 +380,10 @@ export default function App() {
   const prLabelOf = (c, ym) => {
     const [cy, cm] = ym.split("-").map(Number);
     const pr = c.capPeriod || "month";
-    if (pr === "custom") { const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; return `${Math.min(a, b)}-${Math.max(a, b)}月階段`; }
+    if (pr === "custom") {
+      if (c.capStart && /^\d{4}-\d{2}$/.test(c.capStart)) { const [sy, sm] = c.capStart.split("-").map(Number); const em = ((sm - 1 + 11) % 12) + 1; const ey = sy + Math.floor((sm - 1 + 11) / 12); return `${sm}/${sy}–${em}/${ey}期`; }
+      const a = parseInt(c.capFrom, 10) || 1, b = parseInt(c.capTo, 10) || 12; return `${Math.min(a, b)}-${Math.max(a, b)}月階段`;
+    }
     if (pr === "quarter") { const q0 = Math.floor((cm - 1) / 3) * 3 + 1; return `${q0}-${q0 + 2}月季`; }
     if (pr === "year") return `${cy}全年`;
     return `${cm}月`;
@@ -387,6 +405,11 @@ export default function App() {
       const locked = minS != null && pS < minS;
       return { c, gross, fee, full, leftAmt, costPerMile, locked, needMore: locked ? minS - pS : 0, label: prLabelOf(c, ym) };
     }).sort((a, b) => { const rank = (r) => (r.full ? 2 : r.locked ? 1 : 0); return rank(a) - rank(b) || a.costPerMile - b.costPerMile; });
+  };
+  const setGuruReset = (ym) => {
+    if (!window.confirm(`把 GURU 6% 上限改為由 ${ym.split("-")[0]}年${+ym.split("-")[1]}月 重新計一年?之前月份嘅海外簽賬將唔再計入呢個上限。`)) return;
+    const cards = (data.cards || []).map((c) => (c.name && c.name.startsWith("★GURU") ? { ...c, capPeriod: "custom", capStart: ym } : c));
+    persist({ ...data, cards });
   };
   const addPresetCards = () => { const have = new Set((data.cards || []).map((c) => c.name)); const add = CARD_PRESETS.filter((p) => !have.has(p.name)).map((p) => ({ ...p, id: uid() })); if (!add.length) { window.alert("這些卡已經加過了。"); return; } persist({ ...data, cards: [...(data.cards || []), ...add] }); };
   const fileRef = useRef(null);
@@ -1638,6 +1661,12 @@ export default function App() {
                           </div>
                         ); })()}
                         {c.note && <div style={{ marginTop: 8, fontFamily: T.sans, fontSize: 11.5, color: T.inkSoft, lineHeight: 1.5 }}>{c.note}</div>}
+                        {(c.name || "").startsWith("★GURU") && (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${T.line}` }}>
+                            <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginBottom: 6 }}>目前 GURU 上限週期:<b style={{ color: T.inkSoft }}>{prLabel(c)}</b>{c.capStart ? `(由 ${+c.capStart.split("-")[1]}月 起計一年)` : ""}</div>
+                            <button className="btn-ghost" onClick={() => setGuruReset(cardYM)} style={{ fontSize: 12 }}><RotateCcw size={13} />GURU 續咗級 · 由 {cm}月 重新計 $2,200</button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
