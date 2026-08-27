@@ -798,8 +798,27 @@ export default function App() {
   const togglePaid = (line) => {
     const recCur = data.payments[ym] || {};
     const next = { ...recCur };
-    if (next[line.key]) delete next[line.key]; else next[line.key] = { amount: line.amount, date: line.date || todayISO(), rate: rates[line.currency] || 1 };
-    persist({ ...data, payments: { ...data.payments, [ym]: next } });
+    let props = data.properties, debts = data.debts;
+    const isDebt = line.key.startsWith("debt:");
+    const isPLoan = /^p:[^:]+:loan$/.test(line.key);
+    const pcostM = line.key.match(/^p:([^:]+):c:(.+)$/);
+    const pcost = pcostM ? (() => { const p = data.properties.find((x) => x.id === pcostM[1]); const c = p && (p.costs || []).find((y) => y.id === pcostM[2]); return (c && c.isLoan) ? { pid: p.id, cid: c.id } : null; })() : null;
+    if (next[line.key]) {
+      const cut = numify(next[line.key].principalCut);
+      if (cut) {
+        if (isDebt) debts = debts.map((d) => (`debt:${d.id}` === line.key ? { ...d, balance: numify(d.balance) + cut } : d));
+        else if (isPLoan) props = props.map((p) => (`p:${p.id}:loan` === line.key ? { ...p, loan: { ...p.loan, principal: numify(p.loan.principal) + cut } } : p));
+        else if (pcost) props = props.map((p) => (p.id === pcost.pid ? { ...p, costs: (p.costs || []).map((c) => (c.id === pcost.cid ? { ...c, principal: numify(c.principal) + cut } : c)) } : p));
+      }
+      delete next[line.key];
+    } else {
+      let cut = 0;
+      if (isDebt) { const d = debts.find((x) => `debt:${x.id}` === line.key); if (d) { cut = Math.min(numify(line.amount), numify(d.balance)); if (cut > 0) debts = debts.map((x) => (x.id === d.id ? { ...x, balance: numify(x.balance) - cut } : x)); } }
+      else if (isPLoan) { const p = props.find((x) => `p:${x.id}:loan` === line.key); if (p) { const int = numify(p.loan.principal) * numify(p.loan.rate) / 100 / 12; cut = Math.max(0, Math.min(numify(line.amount) - int, numify(p.loan.principal))); if (cut > 0) props = props.map((x) => (x.id === p.id ? { ...x, loan: { ...x.loan, principal: numify(x.loan.principal) - cut } } : x)); } }
+      else if (pcost) { const p = props.find((x) => x.id === pcost.pid); const c = p && (p.costs || []).find((y) => y.id === pcost.cid); if (c) { const int = numify(c.principal) * numify(c.rate) / 100 / 12; cut = Math.max(0, Math.min(numify(line.amount) - int, numify(c.principal))); if (cut > 0) props = props.map((x) => (x.id === p.id ? { ...x, costs: (x.costs || []).map((y) => (y.id === c.id ? { ...y, principal: numify(y.principal) - cut } : y)) } : x)); } }
+      next[line.key] = { amount: line.amount, date: line.date || todayISO(), rate: rates[line.currency] || 1, principalCut: cut };
+    }
+    persist({ ...data, properties: props, debts, payments: { ...data.payments, [ym]: next } });
   };
   const editPaid = (line, k, v) => {
     const recCur = data.payments[ym] || {};
