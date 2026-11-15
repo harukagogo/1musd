@@ -522,7 +522,7 @@ export default function App() {
   };
   const cardMR = (card) => (numify(card.mileRate) > 0 ? numify(card.mileRate) : (MILE_RATE[card.unit] ?? 0));
   const guruUsed = (ym) => {
-    const tr = (data.cards || []).find((x) => x.tracker); if (!tr) return { used: 0, cap: Infinity };
+    const tr = (data.cards || []).find((x) => x.tracker && (x.guruScenes || []).length); if (!tr) return { used: 0, cap: Infinity };
     const months = periodMonthsOf(tr, ym); const gs = tr.guruScenes || [];
     const used = (data.cardTxns || []).reduce((s, t) => { const cc = (data.cards || []).find((x) => x.id === t.cardId); if (!cc || !cc.guru) return s; const l = laneByT(cc, t.laneT); if (l && l.guru && gs.includes(l.scene) && months.includes((t.date || "").slice(0, 7))) return s + txnBase(t); return s; }, 0);
     return { used, cap: numify(tr.cap) || Infinity };
@@ -1752,7 +1752,7 @@ export default function App() {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink }}>{r.c.name}</div>
                               <div style={{ fontFamily: T.sans, fontSize: 10.5, color: r.full ? T.neg : r.locked ? T.brass : T.muted, marginTop: 2, fontWeight: r.locked ? 700 : 500 }}>
-                                {r.full ? `已用完${r.label}上限,改用下一張` : r.locked ? `⚠ 未解鎖:${r.label}要再簽 ${cur(r.needMore, r.c.currency)},依家仲未食到呢個價` : r.leftAmt != null ? `${r.label}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}
+                                {r.full ? `已用完${r.label}上限,改用下一張` : r.locked ? `上面已是現價;${r.label}再簽 ${cur(r.needMore, r.c.currency)} 可加 1.5%` : r.leftAmt != null ? `${r.label}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}
                                 {r.fee > 0 ? ` · 已計 ${r.fee}% 外幣手續費` : ""}
                               </div>
                             </div>
