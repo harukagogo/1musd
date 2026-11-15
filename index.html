@@ -1846,6 +1846,16 @@ export default function App() {
                             <div style={{ display: "flex", justifyContent: "space-between", fontFamily: T.sans, fontSize: 11, marginBottom: 4 }}><span style={{ color: T.inkSoft, fontWeight: 600 }}>{r.name} · {r.label}</span><span style={{ color: over ? T.neg : T.muted, fontVariantNumeric: "tabular-nums" }}>{fmt(r.used)} / {fmt(r.cap)}</span></div>
                             <div style={{ height: 8, background: T.surfaceAlt, borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: over ? T.brass : T.forest, borderRadius: 999, transition: "width .4s ease" }} /></div>
                             {locked ? <div style={{ marginTop: 4, fontFamily: T.sans, fontSize: 10.5, color: T.neg, fontWeight: 700 }}>⚠ 未解鎖:要先簽滿 {fmt(r.minSpend)},仲差 {fmt(r.minSpend - r.used)}</div> : over ? <div style={{ marginTop: 4, fontFamily: T.sans, fontSize: 10.5, color: T.brass, fontWeight: 700 }}>已爆上限,超出只有基本回贈</div> : <div style={{ marginTop: 4, fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>仲可簽 {fmt(r.cap - r.used)}</div>}
+                            {r.name === "海外階段" && (() => {
+                              const mr = cardMR(c), fee = numify(c.fxFee ?? 1.95);
+                              const g = guruUsed(cardYM);
+                              const unlockedRate = (sc) => { const l = laneByScene(c, sc); if (!l || !l.layers) return 0; return l.layers.reduce((s, L) => { if (L.cap === "GURU") return g.used >= g.cap ? s : s + L.rate; return s + L.rate; }, 0); };
+                              const row = (sc, lbl) => { const rt = unlockedRate(sc); if (!(rt > 0)) return null; const miles = rt / 100 * mr; const cpm = miles > 0 ? (1 + fee / 100) / miles : 0; return `${lbl} ${rt.toFixed(1)}%(≈HK$${cpm.toFixed(2)}/里)`; };
+                              const phys = row("海外外幣", "實體店"), onl = row("海外網購", "網購");
+                              const parts = [phys, onl].filter(Boolean);
+                              if (!parts.length) return null;
+                              return <div style={{ marginTop: 4, fontFamily: T.sans, fontSize: 10.5, color: T.forest, fontWeight: 600 }}>💡 簽夠 {fmt(r.minSpend)} 解鎖後:{parts.join(" · ")}{g.used >= g.cap ? "(GURU已爆,未含6%)" : "(已含GURU 6%)"}</div>;
+                            })()}
                           </div>
                         ); })}
 
