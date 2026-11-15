@@ -560,7 +560,9 @@ export default function App() {
       } else if (!c.lanes && numify(c.cap) > 0 && c.capType === "spend") {
         const used = periodSpendOf(c, ym); full = used >= numify(c.cap); leftAmt = Math.max(0, numify(c.cap) - used);
       }
-      return { c, gross: rate, fee, full, leftAmt, costPerMile, locked, needMore, label };
+      let unlockedCPM = null;
+      if (locked && c.lanes && lane.layers) { const lk = lane.layers.find((L) => L.capName === lane.capName); const ur = rate + (lk ? numify(lk.rate) : 0); const um = ur / 100 * mr; unlockedCPM = um > 0 ? (1 + fee / 100) / um : null; }
+      return { c, gross: rate, fee, full, leftAmt, costPerMile, locked, needMore, label, unlockedCPM };
     }).filter(Boolean).sort((a, b) => { const rank = (r) => (r.full ? 1 : 0); return rank(a) - rank(b) || a.costPerMile - b.costPerMile; });
   };
   const setGuruReset = (ym) => {
@@ -1752,7 +1754,7 @@ export default function App() {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink }}>{r.c.name}</div>
                               <div style={{ fontFamily: T.sans, fontSize: 10.5, color: r.full ? T.neg : r.locked ? T.brass : T.muted, marginTop: 2, fontWeight: r.locked ? 700 : 500 }}>
-                                {r.full ? `已用完${r.label}上限,改用下一張` : r.locked ? `上面已是現價;${r.label}再簽 ${cur(r.needMore, r.c.currency)} 可加 1.5%` : r.leftAmt != null ? `${r.label}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}
+                                {r.full ? `已用完${r.label}上限,改用下一張` : r.locked ? `上面已是現價;${r.label}再簽 ${cur(r.needMore, r.c.currency)} 解鎖後 ≈HK$${(r.unlockedCPM || 0).toFixed(2)}/里` : r.leftAmt != null ? `${r.label}仲可簽 ${cur(r.leftAmt, r.c.currency)}` : "無上限"}
                                 {r.fee > 0 ? ` · 已計 ${r.fee}% 外幣手續費` : ""}
                               </div>
                             </div>
