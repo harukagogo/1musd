@@ -104,10 +104,10 @@ const CARD_PRESETS = [
     note: "你已All-in「賞世界」:海外/中國/澳門外幣=3.6%(9X);海外實體店再疊Travel Guru GURU 6%=9.6%。其餘四大類別(賞滋味/賞家居/賞購物/賞享受)各1.6%;唔中類別或電子錢包只有0.4%。自主5X+VS專屬3X共用【每年首$100,000】。類別按商戶MCC判定(外賣App/Apple門市未必中)。⚠自主$100,000爆咗之後,淨返基本1X=0.4%(無上限)。" },
   { name: "HSBC EveryMile", currency: "HKD", unit: "獎賞錢", mileRate: 20, stmtDay: 28, fxFee: 1.95, capType: "none", cap: "", guru: true,
     lanes: [
-      { t: "海外實體店(海外1.5%+GURU 6%)=8.5%", scene: "海外外幣", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }, { rate: 6, cap: "GURU" }] },
-      { t: "澳門實體店 8.5%", scene: "澳門", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }, { rate: 6, cap: "GURU" }] },
-      { t: "中國實體店 8.5%", scene: "中國內地", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }, { rate: 6, cap: "GURU" }] },
-      { t: "海外網購(海外1.5%)=2.5%", scene: "海外網購", rate: 2.5, fx: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "custom", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "custom" }] },
+      { t: "海外實體店(海外1.5%+GURU 6%)=8.5%", scene: "海外外幣", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "quarter", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "quarter" }, { rate: 6, cap: "GURU" }] },
+      { t: "澳門實體店 8.5%", scene: "澳門", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "quarter", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "quarter" }, { rate: 6, cap: "GURU" }] },
+      { t: "中國實體店 8.5%", scene: "中國內地", rate: 8.5, fx: true, guru: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "quarter", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "quarter" }, { rate: 6, cap: "GURU" }] },
+      { t: "海外網購(海外1.5%)=2.5%", scene: "海外網購", rate: 2.5, fx: true, needReg: true, capName: "海外階段", capSpend: 15000, capPeriod: "quarter", minSpend: 12000, layers: [{ rate: 1 }, { rate: 1.5, capName: "海外階段", capSpend: 15000, minSpend: 12000, capPeriod: "quarter" }] },
       { t: "指定日常/旅遊商戶 2.5%", scene: "指定商戶", rate: 2.5, fx: false },
       { t: "本地 / 一般 1%", scene: "本地HK", rate: 1, fx: false },
     ],
@@ -211,6 +211,9 @@ const migrateCards = (list) => (list || []).map((c) => {
   }
   const p = CARD_PRESETS.find((q) => q.name === x.name);
   if (p && p.note && x.note !== p.note) x = { ...x, note: p.note };
+  if (p && p.lanes) x = { ...x, lanes: JSON.parse(JSON.stringify(p.lanes)) };
+  if (p && p.guru != null && x.guru !== p.guru) x = { ...x, guru: p.guru };
+  if (p && p.capName && x.capName !== p.capName) x = { ...x, capName: p.capName };
   if (p && p.fxFee != null && numify(x.fxFee) !== numify(p.fxFee)) x = { ...x, fxFee: p.fxFee };
   if (p && p.scenes && JSON.stringify(x.scenes || []) !== JSON.stringify(p.scenes)) x = { ...x, scenes: [...p.scenes] };
   if (p && JSON.stringify(x.sumFrom || null) !== JSON.stringify(p.sumFrom || null)) x = { ...x, sumFrom: p.sumFrom ? [...p.sumFrom] : undefined };
@@ -530,7 +533,7 @@ export default function App() {
     let r = 0;
     for (const L of lane.layers) {
       if (L.cap === "GURU") { const g = guruUsed(ym); if (g.used >= g.cap) continue; r += L.rate; }
-      else if (L.cap === "自主") { const used = periodSpendOf(card, ym); if (numify(card.cap) > 0 && used >= numify(card.cap)) continue; r += L.rate; }
+      else if (L.cap === "自主") { const used = periodSpendOf(card, ym); if (card.capForced || (numify(card.cap) > 0 && used >= numify(card.cap))) continue; r += L.rate; }
       else if (L.capName) { const used = laneCapUsed(card, L.capName, L.capPeriod, ym); if (numify(L.minSpend) > 0 && used < numify(L.minSpend)) continue; if (numify(L.capSpend) > 0 && used >= numify(L.capSpend)) continue; r += L.rate; }
       else r += L.rate;
     }
@@ -565,6 +568,7 @@ export default function App() {
     const cards = (data.cards || []).map((c) => (c.name && c.name.startsWith("★GURU") ? { ...c, capPeriod: "custom", capStart: ym } : c));
     persist({ ...data, cards });
   };
+  const setCapForced = (cardId, v) => persist({ ...data, cards: (data.cards || []).map((c) => (c.id === cardId ? { ...c, capForced: v } : c)) });
   const addPresetCards = () => { const have = new Set((data.cards || []).map((c) => c.name)); const add = CARD_PRESETS.filter((p) => !have.has(p.name)).map((p) => ({ ...p, id: uid() })); if (!add.length) { window.alert("這些卡已經加過了。"); return; } persist({ ...data, cards: [...(data.cards || []), ...add] }); };
   const fileRef = useRef(null);
 
@@ -1845,6 +1849,12 @@ export default function App() {
                         ); })}
 
                         {c.note && <div style={{ marginTop: 10, fontFamily: T.sans, fontSize: 11.5, color: T.inkSoft, lineHeight: 1.5 }}>{c.note}</div>}
+                        {c.lanes && c.capName && numify(c.cap) > 0 && (
+                          <label style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 11px", borderRadius: 10, background: c.capForced ? "#FBEBE6" : T.surfaceAlt }}>
+                            <input type="checkbox" checked={!!c.capForced} onChange={(e) => setCapForced(c.id, e.target.checked)} style={{ width: 17, height: 17 }} />
+                            <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: c.capForced ? T.neg : T.inkSoft }}>{c.capName}額度已用完(當爆咗計,{c.name.includes("Visa") ? "賞世界跌返0.4%" : "額外回贈當冇"})</span>
+                          </label>
+                        )}
                         {((c.tracker && (c.guruScenes || []).length) || (c.name || "").startsWith("★GURU")) && (
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${T.line}` }}>
                             <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginBottom: 6 }}>GURU 週期:<b style={{ color: T.inkSoft }}>{prLabel(c)}</b></div>
