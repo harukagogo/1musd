@@ -534,7 +534,7 @@ export default function App() {
     for (const L of lane.layers) {
       if (L.cap === "GURU") { const g = guruUsed(ym); if (g.used >= g.cap) continue; r += L.rate; }
       else if (L.cap === "自主") { const used = periodSpendOf(card, ym); if (card.capForced || (numify(card.cap) > 0 && used >= numify(card.cap))) continue; r += L.rate; }
-      else if (L.capName) { const used = laneCapUsed(card, L.capName, L.capPeriod, ym); if (numify(L.minSpend) > 0 && used < numify(L.minSpend)) continue; if (numify(L.capSpend) > 0 && used >= numify(L.capSpend)) continue; r += L.rate; }
+      else if (L.capName) { if (L.capName === "海外階段" && card.stageState === "capped") continue; if (L.capName === "海外階段" && card.stageState === "unlocked") { r += L.rate; continue; } const used = laneCapUsed(card, L.capName, L.capPeriod, ym); if (numify(L.minSpend) > 0 && used < numify(L.minSpend)) continue; if (numify(L.capSpend) > 0 && used >= numify(L.capSpend)) continue; r += L.rate; }
       else r += L.rate;
     }
     return r;
@@ -552,9 +552,9 @@ export default function App() {
       const costPerMile = miles > 0 ? (1 + fee / 100) / miles : Infinity;
       let full = false, leftAmt = null, locked = false, needMore = 0, label = prLabelOf(c, ym);
       if (c.lanes && lane.capName && numify(lane.capSpend) > 0) {
-        const used = laneCapUsed(c, lane.capName, lane.capPeriod, ym);
-        leftAmt = Math.max(0, numify(lane.capSpend) - used);
-        if (numify(lane.minSpend) > 0 && used < numify(lane.minSpend)) { locked = true; needMore = numify(lane.minSpend) - used; }
+        if (lane.capName === "海外階段" && c.stageState === "unlocked") { leftAmt = null; }
+        else if (lane.capName === "海外階段" && c.stageState === "capped") { leftAmt = 0; }
+        else { const used = laneCapUsed(c, lane.capName, lane.capPeriod, ym); leftAmt = Math.max(0, numify(lane.capSpend) - used); if (numify(lane.minSpend) > 0 && used < numify(lane.minSpend)) { locked = true; needMore = numify(lane.minSpend) - used; } }
       } else if (c.lanes && lane.useCap && numify(c.cap) > 0) {
         const used = periodSpendOf(c, ym); full = used >= numify(c.cap); leftAmt = Math.max(0, numify(c.cap) - used);
       } else if (!c.lanes && numify(c.cap) > 0 && c.capType === "spend") {
@@ -568,6 +568,7 @@ export default function App() {
     const cards = (data.cards || []).map((c) => (c.name && c.name.startsWith("★GURU") ? { ...c, capPeriod: "custom", capStart: ym } : c));
     persist({ ...data, cards });
   };
+  const setStageState = (cardId, v) => persist({ ...data, cards: (data.cards || []).map((c) => (c.id === cardId ? { ...c, stageState: v } : c)) });
   const setCapForced = (cardId, v) => persist({ ...data, cards: (data.cards || []).map((c) => (c.id === cardId ? { ...c, capForced: v } : c)) });
   const addPresetCards = () => { const have = new Set((data.cards || []).map((c) => c.name)); const add = CARD_PRESETS.filter((p) => !have.has(p.name)).map((p) => ({ ...p, id: uid() })); if (!add.length) { window.alert("這些卡已經加過了。"); return; } persist({ ...data, cards: [...(data.cards || []), ...add] }); };
   const fileRef = useRef(null);
@@ -1849,12 +1850,6 @@ export default function App() {
                         ); })}
 
                         {c.note && <div style={{ marginTop: 10, fontFamily: T.sans, fontSize: 11.5, color: T.inkSoft, lineHeight: 1.5 }}>{c.note}</div>}
-                        {c.lanes && c.capName && numify(c.cap) > 0 && (
-                          <label style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 11px", borderRadius: 10, background: c.capForced ? "#FBEBE6" : T.surfaceAlt }}>
-                            <input type="checkbox" checked={!!c.capForced} onChange={(e) => setCapForced(c.id, e.target.checked)} style={{ width: 17, height: 17 }} />
-                            <span style={{ fontFamily: T.sans, fontSize: 11.5, fontWeight: 600, color: c.capForced ? T.neg : T.inkSoft }}>{c.capName}額度已用完(當爆咗計,{c.name.includes("Visa") ? "賞世界跌返0.4%" : "額外回贈當冇"})</span>
-                          </label>
-                        )}
                         {((c.tracker && (c.guruScenes || []).length) || (c.name || "").startsWith("★GURU")) && (
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${T.line}` }}>
                             <div style={{ fontFamily: T.sans, fontSize: 11, color: T.muted, marginBottom: 6 }}>GURU 週期:<b style={{ color: T.inkSoft }}>{prLabel(c)}</b></div>
