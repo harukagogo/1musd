@@ -1898,43 +1898,52 @@ export default function App() {
       )}
       {tab === "sim" && (() => {
         const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
-        const baseOf = (l) => tb(perMonth(l.amount, l.freq), l.currency);
-        const incLines = lines.inc.filter((l) => activeRange(l.start, l.end, nowY, nowM)).map((l) => ({ ...l, base: baseOf(l) }));
-        const exLines = lines.ex.map((l) => ({ ...l, base: baseOf(l) }));
+        const incLines = lines.inc.filter((l) => activeRange(l.start, l.end, nowY, nowM));
+        const exLines = lines.ex;
         const ooBase = M.catEx["臨時"] || 0;
-        const getV = (key, base) => (sim[key] !== undefined ? sim[key] : base);
+        const ooLine = { key: "臨時:all", name: "臨時支出(今年÷12)", amount: ooBase, currency: base, freq: "monthly" };
+        const getV = (key, baseAmt) => (sim[key] !== undefined ? sim[key] : baseAmt);
+        const monthlyOf = (l, amt) => tb(perMonth(amt, l.freq), l.currency);
         const setV = (key, v) => persist({ ...data, sim: { ...sim, [key]: v } });
         const resetOne = (key) => { const n = { ...sim }; delete n[key]; persist({ ...data, sim: n }); };
         const updateAdd = (id, k, v) => persist({ ...data, simAdd: simAdd.map((x) => (x.id === id ? { ...x, [k]: v } : x)) });
         const removeAdd = (id) => persist({ ...data, simAdd: simAdd.filter((x) => x.id !== id) });
-        const addItem = (type, cat) => persist({ ...data, simAdd: [...simAdd, { id: uid(), type, cat, name: "", amount: 0 }] });
-        const addInc = simAdd.filter((x) => x.type === "inc").reduce((s, x) => s + numify(x.amount), 0);
-        const addExp = simAdd.filter((x) => x.type === "exp").reduce((s, x) => s + numify(x.amount), 0);
-        const newInc = incLines.reduce((s, l) => s + getV(l.key, l.base), 0) + addInc;
-        const newExp = exLines.reduce((s, l) => s + getV(l.key, l.base), 0) + getV("臨時:all", ooBase) + addExp;
+        const addItem = (type, cat) => persist({ ...data, simAdd: [...simAdd, { id: uid(), type, cat, name: "", amount: 0, currency: base }] });
+        const addInc = simAdd.filter((x) => x.type === "inc").reduce((s, x) => s + tb(numify(x.amount), x.currency || base), 0);
+        const addExp = simAdd.filter((x) => x.type === "exp").reduce((s, x) => s + tb(numify(x.amount), x.currency || base), 0);
+        const newInc = incLines.reduce((s, l) => s + monthlyOf(l, getV(l.key, numify(l.amount))), 0) + addInc;
+        const newExp = exLines.reduce((s, l) => s + monthlyOf(l, getV(l.key, numify(l.amount))), 0) + getV("臨時:all", ooBase) + addExp;
         const newBal = newInc - newExp;
         const diff = newBal - M.balance;
         const changed = Object.keys(sim).length > 0 || simAdd.length > 0;
-        const renderRow = (lkey, name, base) => {
-          const v = getV(lkey, base), d = v - base, on = sim[lkey] !== undefined;
+        const renderRow = (l) => {
+          const baseAmt = numify(l.amount), v = getV(l.key, baseAmt), on = sim[l.key] !== undefined;
+          const fr = FREQ[l.freq] || FREQ.monthly;
+          const curM = monthlyOf(l, v), baseM = monthlyOf(l, baseAmt), dM = curM - baseM;
+          const parts = [l.currency, fr.label];
+          if (l.currency !== base || l.freq !== "monthly") parts.push(`≈每月 ${base} ${fmt(Math.round(curM))}`);
+          let sub = parts.join(" · ");
+          if (on && dM !== 0) sub += ` · 每月${dM > 0 ? "+" : "−"}${fmt(Math.abs(Math.round(dM)))}`;
           return (
-            <div key={lkey} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+            <div key={l.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-                <div style={{ fontFamily: T.sans, fontSize: 10.5, color: on && d !== 0 ? (d > 0 ? T.pos : T.neg) : T.muted }}>現時 {fmt(Math.round(base))}{on && d !== 0 ? ` · ${d > 0 ? "+" : "−"}${fmt(Math.abs(Math.round(d)))}` : ""}</div>
+                <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.name}</div>
+                <div style={{ fontFamily: T.sans, fontSize: 10.5, color: on && dM !== 0 ? (dM > 0 ? T.pos : T.neg) : T.muted }}>{sub}</div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                <MoneyInput className="inp" value={v} onCommit={(n) => (n === base ? resetOne(lkey) : setV(lkey, n))} style={{ width: 104, textAlign: "right", fontWeight: 700, borderColor: on ? T.brass : undefined }} />
-                {on ? <button onClick={() => resetOne(lkey)} title="重設" style={{ border: "none", background: "none", cursor: "pointer", color: T.muted, padding: 0, display: "flex" }}><RotateCcw size={13} /></button> : <span style={{ width: 13 }} />}
+                <span style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted, fontWeight: 600 }}>{l.currency}</span>
+                <MoneyInput className="inp" value={v} onCommit={(n) => (n === baseAmt ? resetOne(l.key) : setV(l.key, n))} style={{ width: 96, textAlign: "right", fontWeight: 700, borderColor: on ? T.brass : undefined }} />
+                {on ? <button onClick={() => resetOne(l.key)} title="重設" style={{ border: "none", background: "none", cursor: "pointer", color: T.muted, padding: 0, display: "flex" }}><RotateCcw size={13} /></button> : <span style={{ width: 13 }} />}
               </div>
             </div>
           );
         };
         const renderAdd = (it) => (
-          <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+          <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
             <input className="inp" defaultValue={it.name} placeholder={it.type === "inc" ? "新收入名稱" : "新支出名稱"} onBlur={(e) => updateAdd(it.id, "name", e.target.value)} style={{ flex: 1, minWidth: 0, fontSize: 13 }} />
-            <MoneyInput className="inp" value={it.amount} onCommit={(n) => updateAdd(it.id, "amount", n)} style={{ width: 104, textAlign: "right", fontWeight: 700 }} />
-            <button onClick={() => removeAdd(it.id)} title="刪除" style={{ border: "none", background: "none", cursor: "pointer", color: T.neg, padding: 0, display: "flex" }}><Trash2 size={14} /></button>
+            <select className="sel" value={it.currency || base} onChange={(e) => updateAdd(it.id, "currency", e.target.value)} style={{ width: 72, flexShrink: 0, padding: "8px 4px" }}>{CUR_LIST.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+            <MoneyInput className="inp" value={it.amount} onCommit={(n) => updateAdd(it.id, "amount", n)} style={{ width: 90, textAlign: "right", fontWeight: 700 }} />
+            <button onClick={() => removeAdd(it.id)} title="刪除" style={{ border: "none", background: "none", cursor: "pointer", color: T.neg, padding: 0, display: "flex", flexShrink: 0 }}><Trash2 size={14} /></button>
           </div>
         );
         const addBtn = (type, cat, label) => (
@@ -1964,7 +1973,7 @@ export default function App() {
 
             <div className="card" style={{ padding: 18, marginBottom: 16 }}>
               <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><Coins size={16} color={T.pos} />收入來源</div>
-              {incLines.length === 0 && simAdd.filter((x) => x.type === "inc").length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>未有生效中的收入。</div> : incLines.map((l) => renderRow(l.key, l.name, l.base))}
+              {incLines.length === 0 && simAdd.filter((x) => x.type === "inc").length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>未有生效中的收入。</div> : incLines.map(renderRow)}
               {simAdd.filter((x) => x.type === "inc").map(renderAdd)}
               {addBtn("inc", "收入", "加一筆收入")}
             </div>
@@ -1972,7 +1981,7 @@ export default function App() {
             {EXP_CATS.map((cat) => { const items = exLines.filter((x) => x.cat === cat); const adds = simAdd.filter((x) => x.type === "exp" && x.cat === cat); return (
               <div key={cat} className="card" style={{ padding: 18, marginBottom: 16 }}>
                 <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLOR[cat] }} />{cat}</div>
-                {items.length === 0 && adds.length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>未有項目。</div> : items.map((l) => renderRow(l.key, l.name, l.base))}
+                {items.length === 0 && adds.length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>未有項目。</div> : items.map(renderRow)}
                 {adds.map(renderAdd)}
                 {addBtn("exp", cat, "加一筆" + cat)}
               </div>
@@ -1981,7 +1990,7 @@ export default function App() {
             {ooBase > 0 && (
               <div className="card" style={{ padding: 18, marginBottom: 16 }}>
                 <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLOR["臨時"] }} />臨時(每月平均)</div>
-                {renderRow("臨時:all", "臨時支出(今年÷12)", ooBase)}
+                {renderRow(ooLine)}
               </div>
             )}
           </div>
