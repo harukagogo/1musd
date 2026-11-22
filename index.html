@@ -459,6 +459,7 @@ export default function App() {
   const [fcYear, setFcYear] = useState(now.getFullYear());
   const [mvMode, setMvMode] = useState("ex");
   const [ooMonth, setOoMonth] = useState("all");
+  const [sim, setSim] = useState({});
   const [cardYM, setCardYM] = useState(ymOf(now.getFullYear(), now.getMonth() + 1));
   const [openTrip, setOpenTrip] = useState(null);
   const [scene, setScene] = useState("網上(港幣)");
@@ -843,6 +844,7 @@ export default function App() {
 
   const TABS = [
     { key: "overview", label: "總覽", icon: LayoutGrid },
+    { key: "sim", label: "模擬", icon: Sliders },
     { key: "monthly", label: "每月對帳", icon: CalendarCheck },
     { key: "annual", label: "年度預測", icon: Target },
     { key: "properties", label: "物業", icon: Building2 },
@@ -1893,6 +1895,82 @@ export default function App() {
           })()}
         </div>
       )}
+      {tab === "sim" && (() => {
+        const nowY = now.getFullYear(), nowM = now.getMonth() + 1;
+        const baseOf = (l) => tb(perMonth(l.amount, l.freq), l.currency);
+        const incLines = lines.inc.filter((l) => activeRange(l.start, l.end, nowY, nowM)).map((l) => ({ ...l, base: baseOf(l) }));
+        const exLines = lines.ex.map((l) => ({ ...l, base: baseOf(l) }));
+        const ooBase = M.catEx["臨時"] || 0;
+        const getV = (key, base) => (sim[key] !== undefined ? sim[key] : base);
+        const setV = (key, v) => setSim((s) => ({ ...s, [key]: v }));
+        const resetOne = (key) => setSim((s) => { const n = { ...s }; delete n[key]; return n; });
+        const newInc = incLines.reduce((s, l) => s + getV(l.key, l.base), 0);
+        const newExp = exLines.reduce((s, l) => s + getV(l.key, l.base), 0) + getV("臨時:all", ooBase);
+        const newBal = newInc - newExp;
+        const diff = newBal - M.balance;
+        const changed = Object.keys(sim).length > 0;
+        const sliderMax = (b) => Math.max(Math.round(b * 2), b + 2000, 2000);
+        const stepOf = (b) => (b >= 20000 ? 500 : b >= 5000 ? 200 : b >= 1000 ? 50 : 10);
+        const Row = ({ lkey, name, base }) => {
+          const v = getV(lkey, base), d = v - base, on = sim[lkey] !== undefined;
+          return (
+            <div style={{ padding: "11px 0", borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 7 }}>
+                <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                <span style={{ display: "flex", alignItems: "baseline", gap: 7, flexShrink: 0 }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: on ? (d > 0 ? T.pos : T.neg) : T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(Math.round(v))}</span>
+                  {on && <span style={{ fontFamily: T.sans, fontSize: 10.5, color: d > 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{d > 0 ? "+" : "−"}{fmt(Math.abs(Math.round(d)))}</span>}
+                  {on && <button onClick={() => resetOne(lkey)} title="重設" style={{ border: "none", background: "none", cursor: "pointer", color: T.muted, padding: 0, display: "flex" }}><RotateCcw size={12} /></button>}
+                </span>
+              </div>
+              <input type="range" min={0} max={sliderMax(base)} step={stepOf(base)} value={v} onChange={(e) => setV(lkey, Number(e.target.value))} style={{ width: "100%", accentColor: T.brass, height: 4 }} />
+            </div>
+          );
+        };
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+              <h2 style={{ fontFamily: T.serif, fontSize: 22, fontWeight: 600, color: T.ink, margin: 0 }}>模擬試算</h2>
+              {changed && <button className="btn-ghost" onClick={() => setSim({})}><RotateCcw size={14} />全部重設</button>}
+            </div>
+            <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>拉動收入或支出,即刻睇到每月結餘點變。呢度淨係試算,唔會改到你實際資料。</div>
+
+            <div className="card" style={{ padding: 20, marginBottom: 16, position: "sticky", top: 8, zIndex: 5 }}>
+              <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+                <div><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>模擬每月收入</div><div style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: T.pos, fontVariantNumeric: "tabular-nums" }}>{bMoney(newInc)}</div><div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>現時 {fmt(M.income)}</div></div>
+                <div><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>模擬每月支出</div><div style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: T.forest, fontVariantNumeric: "tabular-nums" }}>{bMoney(newExp)}</div><div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>現時 {fmt(M.expense)}</div></div>
+                <div><div style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, fontWeight: 600 }}>模擬每月結餘</div><div style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 600, color: newBal >= 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{(newBal >= 0 ? "+" : "−") + fmt(Math.abs(Math.round(newBal)))}</div><div style={{ fontFamily: T.sans, fontSize: 10.5, color: T.muted }}>現時 {(M.balance >= 0 ? "+" : "−") + fmt(Math.abs(Math.round(M.balance)))}</div></div>
+              </div>
+              {changed && (
+                <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.inkSoft }}>每月結餘 {diff >= 0 ? "多咗" : "少咗"} {base} {fmt(Math.abs(Math.round(diff)))}</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>一年計 {diff >= 0 ? "+" : "−"}{base} {fmt(Math.abs(Math.round(diff * 12)))}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="card" style={{ padding: 18, marginBottom: 16 }}>
+              <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><Coins size={16} color={T.pos} />收入來源</div>
+              {incLines.length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>未有生效中的收入。</div> : incLines.map((l) => <Row key={l.key} lkey={l.key} name={l.name} base={l.base} />)}
+            </div>
+
+            {EXP_CATS.map((cat) => { const items = exLines.filter((x) => x.cat === cat); if (!items.length) return null; return (
+              <div key={cat} className="card" style={{ padding: 18, marginBottom: 16 }}>
+                <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLOR[cat] }} />{cat}</div>
+                {items.map((l) => <Row key={l.key} lkey={l.key} name={l.name} base={l.base} />)}
+              </div>
+            ); })}
+
+            {ooBase > 0 && (
+              <div className="card" style={{ padding: 18, marginBottom: 16 }}>
+                <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLOR["臨時"] }} />臨時(每月平均)</div>
+                <Row lkey="臨時:all" name="臨時支出(今年÷12)" base={ooBase} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Footer */}
       <div style={{ marginTop: 28, paddingTop: 16, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <span style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted }}>資料自動儲存於此瀏覽器。建議定期「備份」匯出一份 JSON。</span>
