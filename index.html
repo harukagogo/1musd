@@ -460,6 +460,7 @@ export default function App() {
   const [mvMode, setMvMode] = useState("ex");
   const [ooMonth, setOoMonth] = useState("all");
   const [sim, setSim] = useState({});
+  const [simAdd, setSimAdd] = useState([]);
   const [cardYM, setCardYM] = useState(ymOf(now.getFullYear(), now.getMonth() + 1));
   const [openTrip, setOpenTrip] = useState(null);
   const [scene, setScene] = useState("網上(港幣)");
@@ -1904,36 +1905,48 @@ export default function App() {
         const getV = (key, base) => (sim[key] !== undefined ? sim[key] : base);
         const setV = (key, v) => setSim((s) => ({ ...s, [key]: v }));
         const resetOne = (key) => setSim((s) => { const n = { ...s }; delete n[key]; return n; });
-        const newInc = incLines.reduce((s, l) => s + getV(l.key, l.base), 0);
-        const newExp = exLines.reduce((s, l) => s + getV(l.key, l.base), 0) + getV("臨時:all", ooBase);
+        const updateAdd = (id, k, v) => setSimAdd((a) => a.map((x) => (x.id === id ? { ...x, [k]: v } : x)));
+        const removeAdd = (id) => setSimAdd((a) => a.filter((x) => x.id !== id));
+        const addItem = (type, cat) => setSimAdd((a) => [...a, { id: uid(), type, cat, name: "", amount: 0 }]);
+        const addInc = simAdd.filter((x) => x.type === "inc").reduce((s, x) => s + numify(x.amount), 0);
+        const addExp = simAdd.filter((x) => x.type === "exp").reduce((s, x) => s + numify(x.amount), 0);
+        const newInc = incLines.reduce((s, l) => s + getV(l.key, l.base), 0) + addInc;
+        const newExp = exLines.reduce((s, l) => s + getV(l.key, l.base), 0) + getV("臨時:all", ooBase) + addExp;
         const newBal = newInc - newExp;
         const diff = newBal - M.balance;
-        const changed = Object.keys(sim).length > 0;
-        const sliderMax = (b) => Math.max(Math.round(b * 2), b + 2000, 2000);
-        const stepOf = (b) => (b >= 20000 ? 500 : b >= 5000 ? 200 : b >= 1000 ? 50 : 10);
-        const Row = ({ lkey, name, base }) => {
+        const changed = Object.keys(sim).length > 0 || simAdd.length > 0;
+        const renderRow = (lkey, name, base) => {
           const v = getV(lkey, base), d = v - base, on = sim[lkey] !== undefined;
           return (
-            <div style={{ padding: "11px 0", borderBottom: `1px solid ${T.line}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 7 }}>
-                <span style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                <span style={{ display: "flex", alignItems: "baseline", gap: 7, flexShrink: 0 }}>
-                  <span style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 700, color: on ? (d > 0 ? T.pos : T.neg) : T.ink, fontVariantNumeric: "tabular-nums" }}>{fmt(Math.round(v))}</span>
-                  {on && <span style={{ fontFamily: T.sans, fontSize: 10.5, color: d > 0 ? T.pos : T.neg, fontVariantNumeric: "tabular-nums" }}>{d > 0 ? "+" : "−"}{fmt(Math.abs(Math.round(d)))}</span>}
-                  {on && <button onClick={() => resetOne(lkey)} title="重設" style={{ border: "none", background: "none", cursor: "pointer", color: T.muted, padding: 0, display: "flex" }}><RotateCcw size={12} /></button>}
-                </span>
+            <div key={lkey} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontFamily: T.sans, fontSize: 13, fontWeight: 600, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                <div style={{ fontFamily: T.sans, fontSize: 10.5, color: on && d !== 0 ? (d > 0 ? T.pos : T.neg) : T.muted }}>現時 {fmt(Math.round(base))}{on && d !== 0 ? ` · ${d > 0 ? "+" : "−"}${fmt(Math.abs(Math.round(d)))}` : ""}</div>
               </div>
-              <input type="range" min={0} max={sliderMax(base)} step={stepOf(base)} value={v} onChange={(e) => setV(lkey, Number(e.target.value))} style={{ width: "100%", accentColor: T.brass, height: 4 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <MoneyInput className="inp" value={v} onCommit={(n) => (n === base ? resetOne(lkey) : setV(lkey, n))} style={{ width: 104, textAlign: "right", fontWeight: 700, borderColor: on ? T.brass : undefined }} />
+                {on ? <button onClick={() => resetOne(lkey)} title="重設" style={{ border: "none", background: "none", cursor: "pointer", color: T.muted, padding: 0, display: "flex" }}><RotateCcw size={13} /></button> : <span style={{ width: 13 }} />}
+              </div>
             </div>
           );
         };
+        const renderAdd = (it) => (
+          <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+            <input className="inp" defaultValue={it.name} placeholder={it.type === "inc" ? "新收入名稱" : "新支出名稱"} onBlur={(e) => updateAdd(it.id, "name", e.target.value)} style={{ flex: 1, minWidth: 0, fontSize: 13 }} />
+            <MoneyInput className="inp" value={it.amount} onCommit={(n) => updateAdd(it.id, "amount", n)} style={{ width: 104, textAlign: "right", fontWeight: 700 }} />
+            <button onClick={() => removeAdd(it.id)} title="刪除" style={{ border: "none", background: "none", cursor: "pointer", color: T.neg, padding: 0, display: "flex" }}><Trash2 size={14} /></button>
+          </div>
+        );
+        const addBtn = (type, cat, label) => (
+          <button onClick={() => addItem(type, cat)} style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 5, fontFamily: T.sans, fontSize: 12, fontWeight: 600, color: T.brass, background: "none", border: `1px dashed ${T.line}`, borderRadius: 999, padding: "6px 12px", cursor: "pointer" }}><Plus size={13} />{label}</button>
+        );
         return (
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
               <h2 style={{ fontFamily: T.serif, fontSize: 22, fontWeight: 600, color: T.ink, margin: 0 }}>模擬試算</h2>
-              {changed && <button className="btn-ghost" onClick={() => setSim({})}><RotateCcw size={14} />全部重設</button>}
+              {changed && <button className="btn-ghost" onClick={() => { setSim({}); setSimAdd([]); }}><RotateCcw size={14} />全部重設</button>}
             </div>
-            <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>拉動收入或支出,即刻睇到每月結餘點變。呢度淨係試算,唔會改到你實際資料。</div>
+            <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>直接改每項金額,或者加新項目,即刻睇到每月結餘點變。呢度淨係試算,唔會改到你實際資料。</div>
 
             <div className="card" style={{ padding: 20, marginBottom: 16, position: "sticky", top: 8, zIndex: 5 }}>
               <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
@@ -1951,20 +1964,24 @@ export default function App() {
 
             <div className="card" style={{ padding: 18, marginBottom: 16 }}>
               <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><Coins size={16} color={T.pos} />收入來源</div>
-              {incLines.length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>未有生效中的收入。</div> : incLines.map((l) => <Row key={l.key} lkey={l.key} name={l.name} base={l.base} />)}
+              {incLines.length === 0 && simAdd.filter((x) => x.type === "inc").length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>未有生效中的收入。</div> : incLines.map((l) => renderRow(l.key, l.name, l.base))}
+              {simAdd.filter((x) => x.type === "inc").map(renderAdd)}
+              {addBtn("inc", "收入", "加一筆收入")}
             </div>
 
-            {EXP_CATS.map((cat) => { const items = exLines.filter((x) => x.cat === cat); if (!items.length) return null; return (
+            {EXP_CATS.map((cat) => { const items = exLines.filter((x) => x.cat === cat); const adds = simAdd.filter((x) => x.type === "exp" && x.cat === cat); return (
               <div key={cat} className="card" style={{ padding: 18, marginBottom: 16 }}>
                 <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLOR[cat] }} />{cat}</div>
-                {items.map((l) => <Row key={l.key} lkey={l.key} name={l.name} base={l.base} />)}
+                {items.length === 0 && adds.length === 0 ? <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted }}>未有項目。</div> : items.map((l) => renderRow(l.key, l.name, l.base))}
+                {adds.map(renderAdd)}
+                {addBtn("exp", cat, "加一筆" + cat)}
               </div>
             ); })}
 
             {ooBase > 0 && (
               <div className="card" style={{ padding: 18, marginBottom: 16 }}>
                 <div style={{ fontFamily: T.serif, fontSize: 16, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLOR["臨時"] }} />臨時(每月平均)</div>
-                <Row lkey="臨時:all" name="臨時支出(今年÷12)" base={ooBase} />
+                {renderRow("臨時:all", "臨時支出(今年÷12)", ooBase)}
               </div>
             )}
           </div>
