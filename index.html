@@ -196,7 +196,7 @@ const hydrate = (o) => {
   const cards0 = migrateCards(o.cards);
   const txns0 = (o.cardTxns && o.cardTxns.length) ? o.cardTxns : spendToTxns(o.cardSpend, cards0);
   const { cards, txns } = migrateHSBC(cards0, txns0);
-  return { ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards, cardSpend: o.cardSpend || {}, cardTxns: txns, trips: o.trips || [], payments: o.payments || {}, forecasts: o.forecasts || {} };
+  return { ...EMPTY, ...o, settings: { ...EMPTY.settings, ...(o.settings || {}), rates: { ...EMPTY.settings.rates, ...((o.settings || {}).rates || {}) } }, living: o.living || [], oneoffs: o.oneoffs || [], accounts: o.accounts || [], transfers: o.transfers || [], assetHistory: o.assetHistory || [], cards, cardSpend: o.cardSpend || {}, cardTxns: txns, trips: o.trips || [], payments: o.payments || {}, forecasts: o.forecasts || {}, sim: o.sim || {}, simAdd: o.simAdd || [] };
 };
 const migrateCards = (list) => (list || []).map((c) => {
   if (!c) return c;
@@ -244,7 +244,7 @@ function buildLines(data) {
 
 /* ===================== Seed (from 重要.xlsx) ===================== */
 const KEY = "finance-data-v2";
-const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], accounts: [], transfers: [], assetHistory: [], cards: [], cardSpend: {}, cardTxns: [], trips: [], payments: {}, forecasts: {} };
+const EMPTY = { settings: { base: "HKD", rates: { HKD: 1, MOP: 0.97, CNY: 1.08, USD: 7.8, JPY: 0.052 } }, properties: [], insurances: [], debts: [], incomes: [], subscriptions: [], living: [], oneoffs: [], accounts: [], transfers: [], assetHistory: [], cards: [], cardSpend: {}, cardTxns: [], trips: [], payments: {}, forecasts: {}, sim: {}, simAdd: [] };
 const SEED = EMPTY; // personal data removed for public hosting; load via import after sign-in
 const hasStore = typeof window !== "undefined" && window.storage;
 
@@ -459,8 +459,8 @@ export default function App() {
   const [fcYear, setFcYear] = useState(now.getFullYear());
   const [mvMode, setMvMode] = useState("ex");
   const [ooMonth, setOoMonth] = useState("all");
-  const [sim, setSim] = useState({});
-  const [simAdd, setSimAdd] = useState([]);
+  const sim = data.sim || {};
+  const simAdd = data.simAdd || [];
   const [cardYM, setCardYM] = useState(ymOf(now.getFullYear(), now.getMonth() + 1));
   const [openTrip, setOpenTrip] = useState(null);
   const [scene, setScene] = useState("網上(港幣)");
@@ -1903,11 +1903,11 @@ export default function App() {
         const exLines = lines.ex.map((l) => ({ ...l, base: baseOf(l) }));
         const ooBase = M.catEx["臨時"] || 0;
         const getV = (key, base) => (sim[key] !== undefined ? sim[key] : base);
-        const setV = (key, v) => setSim((s) => ({ ...s, [key]: v }));
-        const resetOne = (key) => setSim((s) => { const n = { ...s }; delete n[key]; return n; });
-        const updateAdd = (id, k, v) => setSimAdd((a) => a.map((x) => (x.id === id ? { ...x, [k]: v } : x)));
-        const removeAdd = (id) => setSimAdd((a) => a.filter((x) => x.id !== id));
-        const addItem = (type, cat) => setSimAdd((a) => [...a, { id: uid(), type, cat, name: "", amount: 0 }]);
+        const setV = (key, v) => persist({ ...data, sim: { ...sim, [key]: v } });
+        const resetOne = (key) => { const n = { ...sim }; delete n[key]; persist({ ...data, sim: n }); };
+        const updateAdd = (id, k, v) => persist({ ...data, simAdd: simAdd.map((x) => (x.id === id ? { ...x, [k]: v } : x)) });
+        const removeAdd = (id) => persist({ ...data, simAdd: simAdd.filter((x) => x.id !== id) });
+        const addItem = (type, cat) => persist({ ...data, simAdd: [...simAdd, { id: uid(), type, cat, name: "", amount: 0 }] });
         const addInc = simAdd.filter((x) => x.type === "inc").reduce((s, x) => s + numify(x.amount), 0);
         const addExp = simAdd.filter((x) => x.type === "exp").reduce((s, x) => s + numify(x.amount), 0);
         const newInc = incLines.reduce((s, l) => s + getV(l.key, l.base), 0) + addInc;
@@ -1944,7 +1944,7 @@ export default function App() {
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
               <h2 style={{ fontFamily: T.serif, fontSize: 22, fontWeight: 600, color: T.ink, margin: 0 }}>模擬試算</h2>
-              {changed && <button className="btn-ghost" onClick={() => { setSim({}); setSimAdd([]); }}><RotateCcw size={14} />全部重設</button>}
+              {changed && <button className="btn-ghost" onClick={() => persist({ ...data, sim: {}, simAdd: [] })}><RotateCcw size={14} />全部重設</button>}
             </div>
             <div style={{ fontFamily: T.sans, fontSize: 12, color: T.muted, marginBottom: 16, marginTop: -4 }}>直接改每項金額,或者加新項目,即刻睇到每月結餘點變。呢度淨係試算,唔會改到你實際資料。</div>
 
