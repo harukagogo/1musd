@@ -1965,8 +1965,8 @@ export default function App() {
               </div>
               {changed && (
                 <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-                  <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.inkSoft }}>每月結餘 {diff >= 0 ? "多咗" : "少咗"} {base} {fmt(Math.abs(Math.round(diff)))}</span>
-                  <span style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>一年計 {diff >= 0 ? "+" : "−"}{base} {fmt(Math.abs(Math.round(diff * 12)))}</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 12.5, fontWeight: 600, color: T.inkSoft }}>比現時 {diff >= 0 ? "多咗" : "少咗"} {base} {fmt(Math.abs(Math.round(diff)))} / 月</span>
+                  <span style={{ fontFamily: T.sans, fontSize: 12.5, color: T.muted }}>一年計 {diff >= 0 ? "+" : "−"}{base} {fmt(Math.abs(Math.round(diff) * 12))}</span>
                 </div>
               )}
             </div>
